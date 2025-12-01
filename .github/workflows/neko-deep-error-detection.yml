@@ -191,7 +191,8 @@ jobs:
           echo "" >> "$DETAILED_LOG"
           echo "=== Finding all shell scripts ===" >> "$DETAILED_LOG"
           
-          find . -name "*.sh" -type f ! -path "./.git/*" | while read -r script; do
+          # Use a for loop with process substitution to avoid subshell issues
+          while IFS= read -r script; do
             TOTAL=$((TOTAL + 1))
             echo "" >> "$DETAILED_LOG"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$DETAILED_LOG"
@@ -221,22 +222,15 @@ jobs:
             echo "Common Issue Checks:" >> "$DETAILED_LOG"
             
             # Check for undefined variables (basic check)
-            if grep -n '\$[a-zA-Z_][a-zA-Z0-9_]*' "$script" | head -10 >> "$DETAILED_LOG" 2>/dev/null; then
-              :
-            fi
+            grep -n '\$[a-zA-Z_][a-zA-Z0-9_]*' "$script" 2>/dev/null | head -10 >> "$DETAILED_LOG" || true
             
-            # Check for potential quoting issues
-            if grep -nE '\$[a-zA-Z_][a-zA-Z0-9_]*[^"]' "$script" 2>/dev/null | head -5; then
+            # Check for potential quoting issues (suppress broken pipe errors)
+            if grep -nE '\$[a-zA-Z_][a-zA-Z0-9_]*[^"]' "$script" 2>/dev/null | head -5 >/dev/null 2>&1; then
               echo "  [WARN] Potential unquoted variable expansion detected" >> "$DETAILED_LOG"
               WARNINGS=$((WARNINGS + 1))
             fi
             
-          done
-          
-          # Count totals
-          TOTAL=$(find . -name "*.sh" -type f ! -path "./.git/*" | wc -l)
-          PASSED=$(grep -c "\[PASS\]" "$SYNTAX_LOG" 2>/dev/null || echo 0)
-          FAILED=$(grep -c "\[FAIL\]" "$SYNTAX_LOG" 2>/dev/null || echo 0)
+          done < <(find . -name "*.sh" -type f ! -path "./.git/*")
           
           echo "" >> "$SYNTAX_LOG"
           echo "========================================"  >> "$SYNTAX_LOG"
@@ -249,12 +243,12 @@ jobs:
           
           cat "$SYNTAX_LOG"
           
-          # Set output
-          echo "total=$TOTAL" >> $GITHUB_OUTPUT
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          # Set output - ensure clean integer values
+          echo "total=${TOTAL}" >> $GITHUB_OUTPUT
+          echo "passed=${PASSED}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED}" >> $GITHUB_OUTPUT
           
-          if [[ $FAILED -gt 0 ]]; then
+          if [[ "$FAILED" -gt 0 ]]; then
             echo ""
             echo "========================================"
             echo "SYNTAX ERRORS FOUND"
@@ -283,7 +277,8 @@ jobs:
           ISSUES_FOUND=0
           FIRST=true
           
-          find . -name "*.sh" -type f ! -path "./.git/*" | while read -r script; do
+          # Use process substitution to avoid subshell issues
+          while IFS= read -r script; do
             echo "" >> "$SHELLCHECK_LOG"
             echo "━━━ $script ━━━" >> "$SHELLCHECK_LOG"
             
@@ -302,7 +297,7 @@ jobs:
             
             shellcheck -f json "$script" 2>/dev/null >> "$SHELLCHECK_JSON" || echo "[]" >> "$SHELLCHECK_JSON"
             
-          done
+          done < <(find . -name "*.sh" -type f ! -path "./.git/*")
           
           echo "]" >> "$SHELLCHECK_JSON"
           
@@ -311,10 +306,15 @@ jobs:
           echo "ShellCheck analysis complete"
           echo "========================================"
           
-          # Show summary
-          ERROR_COUNT=$(grep -c ":error:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
-          WARN_COUNT=$(grep -c ":warning:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
-          NOTE_COUNT=$(grep -c ":note:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
+          # Show summary - ensure clean integer values
+          ERROR_COUNT=$(grep -c ":error:" "$SHELLCHECK_LOG" 2>/dev/null || echo "0")
+          WARN_COUNT=$(grep -c ":warning:" "$SHELLCHECK_LOG" 2>/dev/null || echo "0")
+          NOTE_COUNT=$(grep -c ":note:" "$SHELLCHECK_LOG" 2>/dev/null || echo "0")
+          
+          # Trim whitespace and ensure integers
+          ERROR_COUNT=$(echo "$ERROR_COUNT" | tr -d '[:space:]')
+          WARN_COUNT=$(echo "$WARN_COUNT" | tr -d '[:space:]')
+          NOTE_COUNT=$(echo "$NOTE_COUNT" | tr -d '[:space:]')
           
           echo "Errors: $ERROR_COUNT"
           echo "Warnings: $WARN_COUNT"
@@ -1642,4 +1642,5 @@ jobs:
         run: |
           echo "Critical tests failed. Please check the logs for details."
           exit 1
+
 
