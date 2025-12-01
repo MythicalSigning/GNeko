@@ -112,8 +112,22 @@ The GitHub Actions workflows are designed to:
 5. Generate downloadable artifacts with comprehensive logs
 
 ## Recent Changes
+- 2025-12-01: Fixed neko.cfg SCRIPTPATH unbound variable issue for standalone config loading
+- 2025-12-01: Set up Replit environment with console workflow for CLI tool
+- 2025-12-01: Added .gitignore for proper file exclusions
 - 2025-01-XX: Added neko-comprehensive-testing.yml workflow for extended testing coverage
 - Enhanced logging system for better debugging in CI/CD environments
+
+## Replit Environment
+This project runs as a CLI tool in Replit. The workflow is configured to show help by default.
+
+To run scans, use the Shell and execute commands like:
+```bash
+./neko.sh -d example.com
+./neko.sh --check-tools
+```
+
+Note: Most security tools require separate installation. Run `./install.sh` for full setup.
 
 ## User Preferences
 - Focus on comprehensive testing coverage

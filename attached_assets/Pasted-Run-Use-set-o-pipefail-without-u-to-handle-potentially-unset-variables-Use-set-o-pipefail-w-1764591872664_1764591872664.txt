@@ -1,0 +1,183 @@
+Run # Use set -o pipefail without -u to handle potentially unset variables
+  # Use set -o pipefail without -u to handle potentially unset variables
+  set -o pipefail
+  
+  # Set job result variables with defaults for missing values
+  ENVINFO_RESULT="success"
+  SYNTAX_RESULT="success"
+  CONFIG_RESULT="failure"
+  STRUCTURE_RESULT="success"
+  LIBRARY_RESULT="success"
+  MODULE_RESULT="success"
+  MAIN_RESULT="success"
+  TESTSUITE_RESULT="success"
+  RUN_ID="20251201_121809_14"
+  
+  printf '%s\n' "========================================"
+  printf '%s\n' "NEKO DEEP ERROR DETECTION - FINAL SUMMARY"
+  printf '%s\n' "========================================"
+  printf '\n'
+  printf '%s\n' "Run ID: ${RUN_ID}"
+  printf '%s\n' "Timestamp: $(date)"
+  printf '\n'
+  printf '%s\n' "========================================"
+  printf '%s\n' "JOB RESULTS"
+  printf '%s\n' "========================================"
+  printf '\n'
+  printf '%s\n' "1. Environment Info:      ${ENVINFO_RESULT}"
+  printf '%s\n' "2. Syntax Validation:     ${SYNTAX_RESULT}"
+  printf '%s\n' "3. Config Validation:     ${CONFIG_RESULT}"
+  printf '%s\n' "4. Structure Validation:  ${STRUCTURE_RESULT}"
+  printf '%s\n' "5. Library Tests:         ${LIBRARY_RESULT}"
+  printf '%s\n' "6. Module Tests:          ${MODULE_RESULT}"
+  printf '%s\n' "7. Main Script Tests:     ${MAIN_RESULT}"
+  printf '%s\n' "8. Test Suite:            ${TESTSUITE_RESULT}"
+  printf '\n'
+  
+  # Determine overall status
+  OVERALL="SUCCESS"
+  if [[ "$SYNTAX_RESULT" == "failure" ]]; then
+    OVERALL="FAILURE"
+    printf '%s\n' "[CRITICAL] Syntax validation failed!"
+  fi
+  if [[ "$CONFIG_RESULT" == "failure" ]]; then
+    OVERALL="FAILURE"
+    printf '%s\n' "[CRITICAL] Configuration validation failed!"
+  fi
+  if [[ "$STRUCTURE_RESULT" == "failure" ]]; then
+    OVERALL="FAILURE"
+    printf '%s\n' "[CRITICAL] Structure validation failed!"
+  fi
+  if [[ "$LIBRARY_RESULT" == "failure" ]]; then
+    OVERALL="FAILURE"
+    printf '%s\n' "[CRITICAL] Library tests failed!"
+  fi
+  if [[ "$MODULE_RESULT" == "failure" ]]; then
+    OVERALL="FAILURE"
+    printf '%s\n' "[CRITICAL] Module tests failed!"
+  fi
+  
+  printf '\n'
+  printf '%s\n' "========================================"
+  printf '%s\n' "OVERALL STATUS: ${OVERALL}"
+  printf '%s\n' "========================================"
+  printf '\n'
+  printf '%s\n' "All logs have been uploaded as artifacts."
+  printf '%s\n' "Download them from the Actions page for detailed analysis."
+  printf '\n'
+  
+  # List available logs
+  printf '%s\n' "=== Available Log Artifacts ==="
+  ls -la all-logs/ 2>/dev/null || printf '%s\n' "No artifacts found"
+  
+  # Create summary file using a heredoc with variable substitution
+  {
+    printf '%s\n' "================================================================"
+    printf '%s\n' "NEKO DEEP ERROR DETECTION SUMMARY"
+    printf '%s\n' "================================================================"
+    printf '\n'
+    printf '%s\n' "Run ID: ${RUN_ID}"
+    printf '%s\n' "Date: $(date)"
+    printf '%s\n' "Branch: main"
+    printf '%s\n' "Commit: 8c2218da453b277e6cd1fb75f7abb7b60c9205f6"
+    printf '\n'
+    printf '%s\n' "================================================================"
+    printf '%s\n' "RESULTS"
+    printf '%s\n' "================================================================"
+    printf '\n'
+    printf '%s\n' "Syntax Validation:     ${SYNTAX_RESULT}"
+    printf '%s\n' "Config Validation:     ${CONFIG_RESULT}"
+    printf '%s\n' "Structure Validation:  ${STRUCTURE_RESULT}"
+    printf '%s\n' "Library Tests:         ${LIBRARY_RESULT}"
+    printf '%s\n' "Module Tests:          ${MODULE_RESULT}"
+    printf '%s\n' "Main Script Tests:     ${MAIN_RESULT}"
+    printf '%s\n' "Test Suite:            ${TESTSUITE_RESULT}"
+    printf '\n'
+    printf '%s\n' "================================================================"
+    printf '%s\n' "OVERALL: ${OVERALL}"
+    printf '%s\n' "================================================================"
+  } > final-summary.txt
+  
+  cat final-summary.txt
+  
+  # Exit with appropriate code
+  if [[ "$OVERALL" == "FAILURE" ]]; then
+    exit 1
+  fi
+  shell: /usr/bin/bash -e {0}
+  env:
+    VERBOSE_LOGGING: true
+    DEBUG_MODE: true
+    LOG_TIMESTAMP_FORMAT: %Y-%m-%d %H:%M:%S
+    CHAOS_API_KEY: ***
+    SECURITYTRAILS_API_KEY: ***
+    SHODAN_API_KEY: ***
+    GITHUB_TOKEN: ***
+    VIRUSTOTAL_API_KEY: ***
+    TOOLS_PATH: /home/runner/Tools
+    WORDLISTS_PATH: /home/runner/Tools/wordlists
+========================================
+NEKO DEEP ERROR DETECTION - FINAL SUMMARY
+========================================
+
+Run ID: 20251201_121809_14
+Timestamp: Mon Dec  1 12:19:20 UTC 2025
+
+========================================
+JOB RESULTS
+========================================
+
+1. Environment Info:      success
+2. Syntax Validation:     success
+3. Config Validation:     failure
+4. Structure Validation:  success
+5. Library Tests:         success
+6. Module Tests:          success
+7. Main Script Tests:     success
+8. Test Suite:            success
+
+[CRITICAL] Configuration validation failed!
+
+========================================
+OVERALL STATUS: FAILURE
+========================================
+
+All logs have been uploaded as artifacts.
+Download them from the Actions page for detailed analysis.
+
+=== Available Log Artifacts ===
+total 36
+drwxr-xr-x 9 runner runner 4096 Dec  1 12:19 .
+drwxr-xr-x 3 runner runner 4096 Dec  1 12:19 ..
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 config-validation-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 library-tests-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 main-script-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 module-tests-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 structure-validation-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 syntax-validation-logs-20251201_121809_14
+drwxr-xr-x 2 runner runner 4096 Dec  1 12:19 testsuite-logs-20251201_121809_14
+================================================================
+NEKO DEEP ERROR DETECTION SUMMARY
+================================================================
+
+Run ID: 20251201_121809_14
+Date: Mon Dec  1 12:19:20 UTC 2025
+Branch: main
+Commit: 8c2218da453b277e6cd1fb75f7abb7b60c9205f6
+
+================================================================
+RESULTS
+================================================================
+
+Syntax Validation:     success
+Config Validation:     failure
+Structure Validation:  success
+Library Tests:         success
+Module Tests:          success
+Main Script Tests:     success
+Test Suite:            success
+
+================================================================
+OVERALL: FAILURE
+================================================================
+Error: Process completed with exit code 1.

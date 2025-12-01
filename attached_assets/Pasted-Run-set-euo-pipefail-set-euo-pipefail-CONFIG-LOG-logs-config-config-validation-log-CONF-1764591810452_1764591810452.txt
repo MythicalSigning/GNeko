@@ -1,0 +1,97 @@
+Run set -euo pipefail
+  set -euo pipefail
+  
+  CONFIG_LOG="logs/config/config_validation.log"
+  CONFIG_FILE="neko.cfg"
+  
+  printf '%s\n' "========================================"  > "$CONFIG_LOG"
+  printf '%s\n' "CONFIGURATION FILE VALIDATION"          >> "$CONFIG_LOG"
+  printf '%s\n' "========================================"  >> "$CONFIG_LOG"
+  printf 'Timestamp: %s\n' "$(date)"                       >> "$CONFIG_LOG"
+  printf '\n'                                               >> "$CONFIG_LOG"
+  
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    printf '[CRITICAL] neko.cfg not found!\n' | tee -a "$CONFIG_LOG"
+    exit 1
+  fi
+  
+  printf '%s\n' "=== Configuration File Details ===" >> "$CONFIG_LOG"
+  printf 'File: %s\n' "$CONFIG_FILE" >> "$CONFIG_LOG"
+  printf 'Size: %s bytes\n' "$(wc -c < "$CONFIG_FILE")" >> "$CONFIG_LOG"
+  printf 'Lines: %s\n' "$(wc -l < "$CONFIG_FILE")" >> "$CONFIG_LOG"
+  
+  # Get variable count safely
+  VAR_COUNT=$(grep -c '^\s*[A-Z_]*=' "$CONFIG_FILE" 2>/dev/null) || VAR_COUNT=0
+  printf 'Variables: %d\n' "$VAR_COUNT" >> "$CONFIG_LOG"
+  
+  printf '\n%s\n' "=== Syntax Check ===" >> "$CONFIG_LOG"
+  
+  if bash -n "$CONFIG_FILE" 2>&1 | tee -a "$CONFIG_LOG"; then
+    printf '[PASS] Configuration syntax is valid\n' | tee -a "$CONFIG_LOG"
+  else
+    printf '[FAIL] Configuration has syntax errors\n' | tee -a "$CONFIG_LOG"
+    exit 1
+  fi
+  
+  printf '\n%s\n' "=== Loading Configuration ===" >> "$CONFIG_LOG"
+  
+  # Source in subshell to test loading
+  if (source "$CONFIG_FILE" 2>&1) | tee -a "$CONFIG_LOG"; then
+    printf '[PASS] Configuration loads successfully\n' | tee -a "$CONFIG_LOG"
+  else
+    printf '[FAIL] Configuration failed to load\n' | tee -a "$CONFIG_LOG"
+    exit 1
+  fi
+  
+  # Source for variable checking
+  source "$CONFIG_FILE"
+  
+  printf '\n%s\n' "=== Required Variables Check ===" >> "$CONFIG_LOG"
+  
+  REQUIRED_VARS=(
+    "TOOLS_PATH"
+    "USER_AGENT"
+    "OSINT_ENABLED"
+    "SUBDOMAIN_ENABLED"
+    "DNS_ENABLED"
+    "WEBPROBE_ENABLED"
+    "PORTSCAN_ENABLED"
+    "VULNSCAN_ENABLED"
+    "PARALLEL_ENABLED"
+    "LOGGING_ENABLED"
+  )
+  
+  MISSING=0
+  for var in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var+x}" ]]; then
+      printf '[MISSING] %s\n' "$var" | tee -a "$CONFIG_LOG"
+      MISSING=$((MISSING + 1))
+    else
+      printf '[OK] %s = %s\n' "$var" "${!var}" | tee -a "$CONFIG_LOG"
+    fi
+  done
+  
+  if [[ $MISSING -gt 0 ]]; then
+  Warning: printf '\n[WARNING] %d required variables are missing\n' "$MISSING" | tee -a "$CONFIG_LOG"
+  fi
+  
+  printf '\n%s\n' "=== All Defined Variables (non-sensitive) ===" >> "$CONFIG_LOG"
+  grep -E '^\s*[A-Z_]+=.*' "$CONFIG_FILE" 2>/dev/null | grep -v 'KEY\|TOKEN\|SECRET\|PASS' | head -100 >> "$CONFIG_LOG" || true
+  
+  cat "$CONFIG_LOG"
+  shell: /usr/bin/bash -e {0}
+  env:
+    VERBOSE_LOGGING: true
+    DEBUG_MODE: true
+    LOG_TIMESTAMP_FORMAT: %Y-%m-%d %H:%M:%S
+    CHAOS_API_KEY: ***
+    SECURITYTRAILS_API_KEY: ***
+    SHODAN_API_KEY: ***
+    GITHUB_TOKEN: ***
+    VIRUSTOTAL_API_KEY: ***
+    TOOLS_PATH: /home/runner/Tools
+    WORDLISTS_PATH: /home/runner/Tools/wordlists
+[PASS] Configuration syntax is valid
+neko.cfg: line 660: SCRIPTPATH: unbound variable
+[FAIL] Configuration failed to load
+Error: Process completed with exit code 1.
