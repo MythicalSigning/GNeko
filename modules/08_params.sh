@@ -7,6 +7,7 @@
 # Tools: arjun, paramspider, gf, qsreplace, unfurl, urless
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Main function for parameter discovery
 param_main() {
     log_phase "PHASE 8: PARAMETER DISCOVERY"
     
@@ -202,4 +203,9 @@ Detailed results in ${dir}/parameters/
 EOF
     
     log_success "Parameter aggregation completed"
+}
+
+# Alias for consistency with other modules (params_main as expected by test framework)
+params_main() {
+    param_main "$@"
 }

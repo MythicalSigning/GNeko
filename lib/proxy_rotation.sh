@@ -246,22 +246,28 @@ proxy_smart_rotate() {
 }
 
 # Automatic rotation daemon
+# shellcheck disable=SC2154 # dir is set in main script
 proxy_rotation_daemon() {
     local interval="${1:-$PROXY_ROTATION_INTERVAL}"
+    local pid_dir="${dir:-.}/.tmp"
     
     log_info "Starting proxy rotation daemon (interval: ${interval}s)"
+    
+    # Ensure directory exists
+    [[ -n "${dir:-}" ]] && mkdir -p "$pid_dir"
     
     while true; do
         sleep "$interval"
         proxy_smart_rotate "scheduled"
     done &
     
-    echo "$!" > "${dir}/.tmp/proxy_daemon.pid"
+    echo "$!" > "${pid_dir}/proxy_daemon.pid"
 }
 
 # Stop rotation daemon
+# shellcheck disable=SC2154 # dir is set in main script
 proxy_rotation_stop() {
-    local pid_file="${dir}/.tmp/proxy_daemon.pid"
+    local pid_file="${dir:-.}/.tmp/proxy_daemon.pid"
     if [[ -f "$pid_file" ]]; then
         kill "$(cat "$pid_file")" 2>/dev/null || true
         rm -f "$pid_file"
@@ -275,7 +281,8 @@ proxy_rotation_stop() {
 
 # Execute command with proxy
 proxy_exec() {
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     if [[ -z "$CURRENT_PROXY" ]]; then
         eval "$cmd"
@@ -304,7 +311,8 @@ proxy_exec() {
 proxy_exec_retry() {
     local max_retries="${1:-3}"
     shift
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     local retries=0
     local exit_code=1

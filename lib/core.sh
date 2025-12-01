@@ -155,13 +155,14 @@ start_subfunc() {
 }
 
 # End sub-function
+# shellcheck disable=SC2154 # called_fn_dir is set in main script
 end_subfunc() {
     local result="$1"
     local func_name="$2"
     
     log_info "$result"
-    touch "${called_fn_dir}/.${func_name}"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] END SUB: $func_name - $result" >> "$LOGFILE"
+    [[ -n "${called_fn_dir:-}" ]] && touch "${called_fn_dir}/.${func_name}"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] END SUB: $func_name - $result" >> "${LOGFILE:-/dev/null}"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

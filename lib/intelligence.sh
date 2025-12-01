@@ -365,45 +365,46 @@ intel_detect_patterns() {
     
     local patterns_found=0
     
+    # shellcheck disable=SC2154 # domain and dir are set in main script
     # Pattern: Admin panels exposed
-    if grep -qiE "admin|dashboard|panel|manage" "${dir}/urls/urls.txt" 2>/dev/null; then
-        intel_store "$INTEL_VULN" "$domain" "admin_panel_exposure" "pattern_detection" 70 "medium" "pattern"
+    if grep -qiE "admin|dashboard|panel|manage" "${dir:-}/urls/urls.txt" 2>/dev/null; then
+        intel_store "$INTEL_VULN" "${domain:-unknown}" "admin_panel_exposure" "pattern_detection" 70 "medium" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: Development/debug endpoints
-    if grep -qiE "debug|dev|test|staging|phpinfo|elmah|trace" "${dir}/urls/urls.txt" 2>/dev/null; then
-        intel_store "$INTEL_VULN" "$domain" "debug_endpoint_exposure" "pattern_detection" 80 "high" "pattern"
+    if grep -qiE "debug|dev|test|staging|phpinfo|elmah|trace" "${dir:-}/urls/urls.txt" 2>/dev/null; then
+        intel_store "$INTEL_VULN" "${domain:-unknown}" "debug_endpoint_exposure" "pattern_detection" 80 "high" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: Backup files exposed
-    if grep -qiE "\.bak|\.old|\.backup|\.zip|\.tar|\.sql" "${dir}/content/"*.txt 2>/dev/null; then
-        intel_store "$INTEL_VULN" "$domain" "backup_file_exposure" "pattern_detection" 85 "high" "pattern"
+    if grep -qiE "\.bak|\.old|\.backup|\.zip|\.tar|\.sql" "${dir:-}/content/"*.txt 2>/dev/null; then
+        intel_store "$INTEL_VULN" "${domain:-unknown}" "backup_file_exposure" "pattern_detection" 85 "high" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: API key patterns in JS
-    if grep -qiE "api[_-]?key|apikey|secret[_-]?key|access[_-]?token" "${dir}/js/"*.txt 2>/dev/null; then
-        intel_store "$INTEL_SECRET" "$domain" "api_key_exposure_js" "pattern_detection" 90 "critical" "pattern"
+    if grep -qiE "api[_-]?key|apikey|secret[_-]?key|access[_-]?token" "${dir:-}/js/"*.txt 2>/dev/null; then
+        intel_store "$INTEL_SECRET" "${domain:-unknown}" "api_key_exposure_js" "pattern_detection" 90 "critical" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: Internal IP addresses
-    if grep -qoE '\b(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9]{1,3}\.[0-9]{1,3}\b' "${dir}/"**/*.txt 2>/dev/null; then
-        intel_store "$INTEL_VULN" "$domain" "internal_ip_exposure" "pattern_detection" 75 "medium" "pattern"
+    if grep -qoE '\b(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9]{1,3}\.[0-9]{1,3}\b' "${dir:-}/"**/*.txt 2>/dev/null; then
+        intel_store "$INTEL_VULN" "${domain:-unknown}" "internal_ip_exposure" "pattern_detection" 75 "medium" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: Error messages with stack traces
-    if grep -qiE "stack ?trace|exception|error at|line [0-9]+|\.php on line" "${dir}/"**/*.txt 2>/dev/null; then
-        intel_store "$INTEL_VULN" "$domain" "verbose_error_messages" "pattern_detection" 65 "low" "pattern"
+    if grep -qiE "stack ?trace|exception|error at|line [0-9]+|\.php on line" "${dir:-}/"**/*.txt 2>/dev/null; then
+        intel_store "$INTEL_VULN" "${domain:-unknown}" "verbose_error_messages" "pattern_detection" 65 "low" "pattern"
         ((patterns_found++))
     fi
     
     # Pattern: Default credentials in responses
-    if grep -qiE "admin:admin|root:root|password:password|test:test" "${dir}/"**/*.txt 2>/dev/null; then
-        intel_store "$INTEL_SECRET" "$domain" "default_credentials" "pattern_detection" 95 "critical" "pattern"
+    if grep -qiE "admin:admin|root:root|password:password|test:test" "${dir:-}/"**/*.txt 2>/dev/null; then
+        intel_store "$INTEL_SECRET" "${domain:-unknown}" "default_credentials" "pattern_detection" 95 "critical" "pattern"
         ((patterns_found++))
     fi
     

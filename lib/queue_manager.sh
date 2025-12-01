@@ -448,7 +448,8 @@ _queue_global_rate_check() {
 queue_run_tool() {
     local tool_name="$1"
     shift
-    local args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local args="$*"
     local priority="${TOOL_PRIORITY:-$PRIORITY_NORMAL}"
     local timeout="${TOOL_TIMEOUT:-3600}"
     
@@ -712,7 +713,8 @@ queue_nuclei() {
     local targets="$1"
     local output="$2"
     shift 2
-    local extra_args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local extra_args="$*"
     
     TOOL_PRIORITY=$PRIORITY_NORMAL TOOL_TIMEOUT=7200 \
         queue_run_tool nuclei -l "$targets" -o "$output" $extra_args
@@ -723,7 +725,8 @@ queue_httpx() {
     local targets="$1"
     local output="$2"
     shift 2
-    local extra_args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local extra_args="$*"
     
     TOOL_PRIORITY=$PRIORITY_HIGH TOOL_TIMEOUT=1800 \
         queue_run_tool httpx -l "$targets" -o "$output" $extra_args
@@ -735,7 +738,8 @@ queue_ffuf() {
     local wordlist="$2"
     local output="$3"
     shift 3
-    local extra_args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local extra_args="$*"
     
     TOOL_PRIORITY=$PRIORITY_NORMAL TOOL_TIMEOUT=3600 \
         queue_run_tool ffuf -u "$url" -w "$wordlist" -o "$output" $extra_args
@@ -746,7 +750,8 @@ queue_nmap() {
     local targets="$1"
     local output="$2"
     shift 2
-    local extra_args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local extra_args="$*"
     
     TOOL_PRIORITY=$PRIORITY_HIGH TOOL_TIMEOUT=7200 \
         queue_run_tool nmap -oA "$output" $extra_args "$targets"
@@ -757,7 +762,8 @@ queue_masscan() {
     local targets="$1"
     local output="$2"
     shift 2
-    local extra_args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local extra_args="$*"
     
     TOOL_PRIORITY=$PRIORITY_HIGH TOOL_TIMEOUT=3600 \
         queue_run_tool masscan -iL "$targets" -oJ "$output" $extra_args

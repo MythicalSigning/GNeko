@@ -578,7 +578,8 @@ orchestrator_register_hook() {
 _orchestrator_trigger_hooks() {
     local hook_type="$1"
     shift
-    local args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local args="$*"
     
     for key in $(printf '%s\n' "${!ORCHESTRATOR_HOOKS[@]}" | grep "^${hook_type}:" | sort); do
         local callback="${ORCHESTRATOR_HOOKS[$key]}"

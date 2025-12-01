@@ -421,7 +421,8 @@ sem_init() {
 sem_run() {
     local name="$1"
     shift
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     if [[ "$PARALLEL_ENABLED" != "true" ]]; then
         eval "$cmd"
