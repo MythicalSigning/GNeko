@@ -702,8 +702,10 @@ orchestrator_cleanup() {
     
     ORCHESTRATOR_RUNNING=false
     
-    # Generate final report
-    orchestrator_status > "${ORCHESTRATOR_DIR}/final_status.txt"
+    # Generate final report (only if directory is writable)
+    if [[ -n "$ORCHESTRATOR_DIR" ]] && [[ -d "$ORCHESTRATOR_DIR" ]] && [[ -w "$ORCHESTRATOR_DIR" ]]; then
+        orchestrator_status > "${ORCHESTRATOR_DIR}/final_status.txt" 2>/dev/null || true
+    fi
     
     # Cleanup subsystems
     type -t queue_cleanup &>/dev/null && queue_cleanup
@@ -711,6 +713,85 @@ orchestrator_cleanup() {
     type -t data_bus_cleanup &>/dev/null && data_bus_cleanup
     
     log_debug "Orchestrator cleanup completed"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL ORCHESTRATOR FUNCTIONS
+# Required for comprehensive test coverage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Add a new phase dynamically
+orchestrator_add_phase() {
+    local phase_id="$1"
+    local phase_num="${2:-99}"
+    local description="${3:-Custom phase}"
+    local dependencies="${4:-}"
+    local tools="${5:-}"
+    local priority="${6:-5}"
+    local timeout="${7:-3600}"
+    
+    # Add to phase definitions
+    PHASE_DEFINITIONS["$phase_id"]="${phase_num}:${description}:${dependencies}:${tools}:${priority}:${timeout}"
+    
+    # Update dependency graph
+    DEPENDENCY_GRAPH["$phase_id"]="$dependencies"
+    
+    # Add to reverse dependencies
+    if [[ -n "$dependencies" ]]; then
+        IFS=',' read -ra dep_array <<< "$dependencies"
+        for dep in "${dep_array[@]}"; do
+            dep=$(echo "$dep" | tr -d ' ')
+            [[ -z "$dep" ]] && continue
+            
+            if [[ -z "${REVERSE_DEPENDENCIES[$dep]}" ]]; then
+                REVERSE_DEPENDENCIES["$dep"]="$phase_id"
+            else
+                REVERSE_DEPENDENCIES["$dep"]+=",${phase_id}"
+            fi
+        done
+    fi
+    
+    # Recalculate execution order
+    _orchestrator_calculate_execution_order
+    
+    log_debug "Phase added: $phase_id"
+}
+
+# Set dependency between phases
+orchestrator_set_dependency() {
+    local phase_id="$1"
+    local dependency="$2"
+    
+    # Get existing dependencies
+    local existing_deps="${DEPENDENCY_GRAPH[$phase_id]:-}"
+    
+    if [[ -z "$existing_deps" ]]; then
+        DEPENDENCY_GRAPH["$phase_id"]="$dependency"
+    else
+        DEPENDENCY_GRAPH["$phase_id"]="${existing_deps},${dependency}"
+    fi
+    
+    # Update reverse dependencies
+    if [[ -z "${REVERSE_DEPENDENCIES[$dependency]}" ]]; then
+        REVERSE_DEPENDENCIES["$dependency"]="$phase_id"
+    else
+        REVERSE_DEPENDENCIES["$dependency"]+=",${phase_id}"
+    fi
+    
+    # Recalculate execution order
+    _orchestrator_calculate_execution_order
+    
+    log_debug "Dependency set: $phase_id depends on $dependency"
+}
+
+# Run the orchestrator (alias for orchestrator_run_all)
+orchestrator_run() {
+    orchestrator_run_all "$@"
+}
+
+# Get the current execution order
+orchestrator_get_order() {
+    printf '%s\n' "${EXECUTION_ORDER[@]}"
 }
 
 # Export functions

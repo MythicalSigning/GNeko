@@ -492,6 +492,88 @@ EOF
     log_success "Intelligence report generated: $output_file"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL INTELLIGENCE FUNCTIONS
+# Required for comprehensive test coverage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Add a finding to the intelligence database
+intel_add_finding() {
+    local category="$1"
+    local target="$2"
+    local data="${3:-}"
+    local source="${4:-unknown}"
+    local confidence="${5:-50}"
+    local severity="${6:-info}"
+    local phase="${7:-unknown}"
+    
+    intel_store "$category" "$target" "$data" "$source" "$confidence" "$severity" "$phase"
+}
+
+# Get severity level for a finding (returns numeric priority)
+intel_get_severity() {
+    local finding_id="${1:-}"
+    local severity="${2:-}"
+    
+    # If severity string is provided directly, convert to priority
+    if [[ -n "$severity" ]]; then
+        case "${severity,,}" in
+            critical) echo "1" ;;
+            high) echo "2" ;;
+            medium) echo "3" ;;
+            low) echo "4" ;;
+            info|informational) echo "5" ;;
+            *) echo "5" ;;
+        esac
+        return 0
+    fi
+    
+    # If finding_id is provided, query the database
+    if [[ -n "$finding_id" ]] && command_exists sqlite3 && [[ -f "$INTEL_DB" ]]; then
+        local sev=$(sqlite3 "$INTEL_DB" "SELECT severity FROM findings WHERE id = $finding_id;" 2>/dev/null)
+        case "${sev,,}" in
+            critical) echo "1" ;;
+            high) echo "2" ;;
+            medium) echo "3" ;;
+            low) echo "4" ;;
+            *) echo "5" ;;
+        esac
+    else
+        echo "5"
+    fi
+}
+
+# Deduplicate findings in the intelligence database
+intel_deduplicate() {
+    log_info "Deduplicating intelligence findings..."
+    
+    if ! command_exists sqlite3 || [[ ! -f "$INTEL_DB" ]]; then
+        log_warning "SQLite not available for deduplication"
+        return 0
+    fi
+    
+    # Count before deduplication
+    local before_count=$(sqlite3 "$INTEL_DB" "SELECT COUNT(*) FROM findings;" 2>/dev/null)
+    
+    # Remove exact duplicates (same category, target, and data)
+    sqlite3 "$INTEL_DB" << 'SQL'
+DELETE FROM findings
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM findings
+    GROUP BY category, target, data
+);
+SQL
+    
+    # Count after deduplication
+    local after_count=$(sqlite3 "$INTEL_DB" "SELECT COUNT(*) FROM findings;" 2>/dev/null)
+    local removed=$((before_count - after_count))
+    
+    log_success "Deduplicated findings: removed $removed duplicates ($before_count -> $after_count)"
+    
+    return 0
+}
+
 # Export intelligence data as JSON
 intel_export_json() {
     local output_file="${1:-${dir}/reports/intelligence.json}"

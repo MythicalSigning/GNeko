@@ -745,6 +745,103 @@ queue_ffuf() {
         queue_run_tool ffuf -u "$url" -w "$wordlist" -o "$output" $extra_args
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL QUEUE FUNCTIONS
+# Required for comprehensive test coverage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Alias: queue_add -> queue_enqueue
+queue_add() {
+    queue_enqueue "$@"
+}
+
+# Alias: queue_run -> queue_process + queue_dequeue
+queue_run() {
+    local queue_name="${1:-default}"
+    queue_dequeue "$queue_name"
+}
+
+# Wait for a processing slot to become available
+wait_for_slot() {
+    local queue_name="${1:-default}"
+    local timeout="${2:-60}"
+    local start_time=$(date +%s)
+    
+    while true; do
+        if _queue_can_run "$queue_name"; then
+            return 0
+        fi
+        
+        local elapsed=$(($(date +%s) - start_time))
+        if [[ $elapsed -ge $timeout ]]; then
+            log_warning "Timeout waiting for slot in queue $queue_name"
+            return 1
+        fi
+        
+        sleep 0.5
+    done
+}
+
+# Release a processing slot
+release_slot() {
+    local queue_name="${1:-default}"
+    
+    # Decrement current jobs if above 0
+    local current=${QUEUE_CURRENT_JOBS[$queue_name]:-0}
+    if [[ $current -gt 0 ]]; then
+        ((QUEUE_CURRENT_JOBS[$queue_name]--)) || true
+    fi
+    
+    log_debug "Slot released in queue $queue_name"
+}
+
+# Get rate limit for a specific tool or queue
+get_rate_limit() {
+    local tool_or_queue="$1"
+    
+    # Check if it's a queue name first
+    if [[ -n "${QUEUE_CONFIG[$tool_or_queue]}" ]]; then
+        local config="${QUEUE_CONFIG[$tool_or_queue]}"
+        IFS=':' read -r max_concurrent rate_per_second burst_limit cooldown_ms priority_levels <<< "$config"
+        echo "$rate_per_second"
+        return 0
+    fi
+    
+    # Check if it's a tool name
+    local queue_name="${TOOL_QUEUE_MAP[$tool_or_queue]:-default}"
+    if [[ -n "${QUEUE_CONFIG[$queue_name]}" ]]; then
+        local config="${QUEUE_CONFIG[$queue_name]}"
+        IFS=':' read -r max_concurrent rate_per_second burst_limit cooldown_ms priority_levels <<< "$config"
+        echo "$rate_per_second"
+        return 0
+    fi
+    
+    # Default rate limit
+    echo "0"
+}
+
+# Execute command with rate limiting
+with_rate_limit() {
+    local rate_limit="$1"
+    shift
+    local cmd="$*"
+    
+    # If no rate limit, just execute
+    if [[ "$rate_limit" == "0" ]] || [[ -z "$rate_limit" ]]; then
+        eval "$cmd"
+        return $?
+    fi
+    
+    # Calculate delay between requests
+    local delay=$(echo "scale=4; 1 / $rate_limit" | bc 2>/dev/null || echo "0.1")
+    
+    # Apply rate limiting using a simple sleep
+    sleep "$delay"
+    
+    # Execute the command
+    eval "$cmd"
+}
+
 # Run nmap through queue with DOS protection
 queue_nmap() {
     local targets="$1"

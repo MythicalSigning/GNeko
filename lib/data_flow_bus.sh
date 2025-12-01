@@ -742,6 +742,57 @@ data_bus_add_subdomains() {
     data_bus_publish "subdomain_discovery" "$data" "$producer"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPATIBILITY ALIASES
+# These aliases provide shorter names for the main functions as expected by tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Alias: bus_init -> data_bus_init
+bus_init() {
+    data_bus_init "$@"
+}
+
+# Alias: bus_publish -> data_bus_publish
+bus_publish() {
+    data_bus_publish "$@"
+}
+
+# Alias: bus_subscribe -> data_bus_subscribe
+bus_subscribe() {
+    data_bus_subscribe "$@"
+}
+
+# Alias: bus_get_data -> data_bus_get
+bus_get_data() {
+    data_bus_get "$@"
+}
+
+# Alias: bus_clear - Clear all data from a channel
+bus_clear() {
+    local channel="$1"
+    local channel_dir="${DATA_BUS_CHANNELS[$channel]}"
+    
+    if [[ -z "$channel_dir" ]] || [[ ! -d "$channel_dir" ]]; then
+        log_error "Unknown channel: $channel"
+        return 1
+    fi
+    
+    local def="${DATA_BUS_CHANNEL_DEFS[$channel]}"
+    IFS=':' read -r data_type format description <<< "$def"
+    
+    local data_file="${channel_dir}/data.${format}"
+    
+    # Clear the data file
+    : > "$data_file"
+    
+    # Update metadata
+    jq '.message_count = 0 | .last_updated = null' \
+        "${channel_dir}/meta.json" > "${channel_dir}/meta.json.tmp" && \
+        mv "${channel_dir}/meta.json.tmp" "${channel_dir}/meta.json"
+    
+    log_debug "Channel $channel cleared"
+}
+
 # Shorthand for getting all live hosts
 data_bus_get_live_hosts() {
     data_bus_get "live_hosts" "lines"

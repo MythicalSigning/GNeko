@@ -488,3 +488,87 @@ proxy_cleanup() {
     proxy_clear
     log_debug "Proxy system cleaned up"
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL PROXY FUNCTIONS
+# Required for comprehensive test coverage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Test proxy connectivity and functionality
+proxy_test() {
+    local proxy="${1:-$CURRENT_PROXY}"
+    local timeout="${2:-10}"
+    local verbose="${3:-false}"
+    
+    if [[ -z "$proxy" ]]; then
+        log_warning "No proxy specified for testing"
+        return 1
+    fi
+    
+    local result=0
+    local tests_passed=0
+    local tests_failed=0
+    
+    # Test 1: Basic connectivity
+    if [[ "$verbose" == "true" ]]; then
+        echo "Testing basic connectivity..."
+    fi
+    
+    if proxy_check "$proxy" "$timeout"; then
+        ((tests_passed++))
+        [[ "$verbose" == "true" ]] && echo "  [PASS] Basic connectivity"
+    else
+        ((tests_failed++))
+        [[ "$verbose" == "true" ]] && echo "  [FAIL] Basic connectivity"
+        result=1
+    fi
+    
+    # Test 2: HTTPS support (if not SOCKS)
+    if [[ "$proxy" != socks* ]]; then
+        if [[ "$verbose" == "true" ]]; then
+            echo "Testing HTTPS support..."
+        fi
+        
+        if curl -s -x "$proxy" --max-time "$timeout" "https://www.google.com" >/dev/null 2>&1; then
+            ((tests_passed++))
+            [[ "$verbose" == "true" ]] && echo "  [PASS] HTTPS support"
+        else
+            ((tests_failed++))
+            [[ "$verbose" == "true" ]] && echo "  [FAIL] HTTPS support"
+        fi
+    fi
+    
+    # Test 3: IP masking
+    if [[ "$verbose" == "true" ]]; then
+        echo "Testing IP masking..."
+    fi
+    
+    local original_ip proxy_ip
+    original_ip=$(curl -s --max-time "$timeout" "https://api.ipify.org" 2>/dev/null)
+    proxy_ip=$(curl -s -x "$proxy" --max-time "$timeout" "https://api.ipify.org" 2>/dev/null)
+    
+    if [[ -n "$proxy_ip" ]] && [[ "$original_ip" != "$proxy_ip" ]]; then
+        ((tests_passed++))
+        [[ "$verbose" == "true" ]] && echo "  [PASS] IP masking (original: $original_ip, proxy: $proxy_ip)"
+    elif [[ -n "$proxy_ip" ]]; then
+        [[ "$verbose" == "true" ]] && echo "  [WARN] IP might not be masked"
+    else
+        ((tests_failed++))
+        [[ "$verbose" == "true" ]] && echo "  [FAIL] Could not verify IP"
+    fi
+    
+    # Summary
+    if [[ "$verbose" == "true" ]]; then
+        echo ""
+        echo "Proxy test summary for: $proxy"
+        echo "  Tests passed: $tests_passed"
+        echo "  Tests failed: $tests_failed"
+    fi
+    
+    return $result
+}
+
+# Export proxy functions
+export -f proxy_init proxy_set proxy_get proxy_get_ip proxy_rotate
+export -f proxy_check proxy_smart_rotate proxy_exec proxy_exec_retry
+export -f proxy_add proxy_remove proxy_clear proxy_stats proxy_test

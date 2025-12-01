@@ -1,0 +1,270 @@
+╔══════════════════════════════════════════════════════════════╗
+║     NEKO MODULE FUNCTION COVERAGE TESTING                    ║
+╚══════════════════════════════════════════════════════════════╝
+Timestamp: 2025-12-01 15:00:14
+
+[INFO] Setting up test environment...
+[INFO] Test directory: /tmp/neko_modcov_1706
+[INFO] Loading configuration and libraries...
+[INFO] Testing module function coverage...
+
+═══════════════════════════════════════════════════════════════
+Module: 00_osint
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] osint_main
+  [OK] osint_whois
+  [OK] osint_emails
+  [OK] osint_theharvester
+  [OK] osint_github_recon
+  [OK] osint_gitlab_recon
+  [OK] osint_secret_scanning
+  [OK] osint_api_leaks
+  [OK] osint_google_dorks
+  [OK] osint_spoof_check
+  [OK] osint_ip_info
+  [OK] osint_aggregate_results
+
+═══════════════════════════════════════════════════════════════
+Module: 01_subdomain
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] subdomain_main
+  [OK] subdomain_passive
+  [OK] subdomain_crt
+  [OK] subdomain_github
+  [OK] subdomain_active
+  [OK] subdomain_tls
+  [OK] subdomain_bruteforce
+  [OK] subdomain_permutation
+  [OK] subdomain_recursive
+  [OK] subdomain_scraping
+  [OK] subdomain_resolve_all
+  [OK] subdomain_fast
+
+═══════════════════════════════════════════════════════════════
+Module: 02_dns
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] dns_main
+  [OK] dns_resolution
+  [OK] filter_cdn_ips
+  [OK] dns_records
+  [OK] dns_zone_transfer
+  [OK] dns_reverse_lookup
+  [OK] dns_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 03_webprobe
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] webprobe_main
+  [OK] webprobe_httpx
+  [OK] webprobe_extract_httpx_data
+  [OK] webprobe_httprobe
+  [OK] webprobe_waf_detection
+  [OK] webprobe_cdn_detection
+  [OK] webprobe_screenshots
+  [OK] webprobe_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 04_portscan
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] portscan_main
+  [OK] portscan_prepare_targets
+  [OK] portscan_passive
+  [OK] portscan_masscan
+  [OK] portscan_naabu
+  [OK] portscan_nmap
+  [OK] portscan_parse_nmap
+  [OK] portscan_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 05_content
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] content_main
+  [OK] content_prepare_targets
+  [OK] content_ffuf
+  [OK] content_parse_ffuf_results
+  [OK] content_feroxbuster
+  [OK] content_gobuster
+  [OK] content_extensions
+  [OK] content_vhost
+  [OK] content_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 06_fingerprint
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] fingerprint_main
+  [OK] fingerprint_whatweb
+  [OK] fingerprint_nikto
+  [OK] fingerprint_cms_detect
+  [OK] fingerprint_wpscan
+  [OK] fingerprint_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 07_urlanalysis
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] urlanalysis_main
+  [OK] urlanalysis_katana
+  [OK] urlanalysis_gau
+  [OK] urlanalysis_wayback
+  [OK] urlanalysis_js_files
+  [OK] urlanalysis_js_secrets
+  [OK] urlanalysis_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 08_params
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] param_main
+  [OK] param_arjun
+  [OK] param_paramspider
+  [OK] param_gf_patterns
+  [OK] param_dedupe
+  [OK] param_aggregate
+  [OK] params_main
+
+═══════════════════════════════════════════════════════════════
+Module: 09_vulnscan
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] vulnscan_main
+  [OK] vulnscan_prepare_targets
+  [OK] vulnscan_nuclei
+  [OK] nuclei_fast
+  [OK] vulnscan_sqli
+  [OK] vulnscan_command_injection
+  [OK] vulnscan_ssti
+  [OK] vulnscan_ssrf
+  [OK] vulnscan_lfi
+  [OK] vulnscan_crlf
+  [OK] vulnscan_cors
+  [OK] vulnscan_open_redirect
+  [OK] vulnscan_headers
+  [OK] vulnscan_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 10_xss
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] xss_main
+  [OK] xss_prepare_targets
+  [OK] xss_gxss_filter
+  [OK] xss_dalfox
+  [OK] xss_xsstrike
+  [OK] xss_kxss
+  [OK] xss_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 11_takeover
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] takeover_main
+  [OK] takeover_nuclei
+  [OK] takeover_dnsreaper
+  [OK] takeover_dnstake
+  [OK] takeover_subjack
+  [OK] takeover_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 12_cloud
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] cloud_main
+  [OK] cloud_azure_blobs
+  [OK] cloud_gcp_buckets
+  [OK] cloud_enum
+  [OK] cloud_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 13_auth
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] auth_main
+  [OK] auth_brutespray
+  [OK] auth_jwt_analysis
+  [OK] auth_default_creds
+  [OK] auth_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 14_api
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] api_main
+  [OK] api_swagger_discovery
+  [OK] api_endpoint_discovery
+  [OK] api_graphql_testing
+  [OK] api_fuzzing
+  [OK] api_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 15_report
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] report_main
+  [OK] report_json
+  [OK] report_markdown
+  [OK] report_html
+  [OK] report_executive_summary
+  [OK] report_notify
+
+═══════════════════════════════════════════════════════════════
+Module: 16_advanced_vulns
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] advanced_vulns_main
+  [OK] advanced_vulns_prepare_targets
+  [OK] blind_xss_hunter
+  [OK] prototype_pollution_scan
+  [OK] web_cache_deception
+  [OK] http_desync_check
+  [OK] race_condition_test
+  [OK] graphql_deep_scan
+  [OK] websocket_testing
+  [OK] oauth_oidc_testing
+  [OK] advanced_vulns_aggregate
+
+═══════════════════════════════════════════════════════════════
+Module: 17_bettercap
+═══════════════════════════════════════════════════════════════
+[LOADED] Module sourced successfully
+  [OK] bettercap_main
+  [OK] bettercap_check_prerequisites
+  [OK] bettercap_prepare_targets
+  [OK] bettercap_network_recon
+  [OK] bettercap_host_discovery
+  [OK] bettercap_service_discovery
+  [OK] bettercap_ssl_analysis
+  [OK] bettercap_http_analysis
+  [OK] bettercap_credential_detection
+  [OK] bettercap_arp_analysis
+  [OK] bettercap_dns_analysis
+  [OK] bettercap_wifi_scan
+  [OK] bettercap_ble_scan
+  [OK] bettercap_packet_analysis
+  [OK] bettercap_sslstrip_test
+  [OK] bettercap_aggregate_results
+  [OK] bettercap_store_intel
+
+═══════════════════════════════════════════════════════════════
+COVERAGE SUMMARY
+═══════════════════════════════════════════════════════════════
+Modules tested: 18
+Total functions: 153
+Available: 153
+Missing: 0
+Coverage: 100%
+[INFO] Function coverage testing complete
+[INFO] Testing function parameter handling...
+[INFO] Parameter handling tests complete
+[INFO] Testing edge cases...
+[INFO] Edge case tests complete
+[INFO] Testing return codes...
+[INFO] Return code tests complete
+[INFO] All module function coverage tests complete
+[INFO] Logs available in: /home/runner/workspace/GNeko/logs/module-coverage

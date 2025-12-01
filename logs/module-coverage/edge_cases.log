@@ -1,0 +1,16 @@
+=== EDGE CASE TESTS ===
+Timestamp: 2025-12-01 15:00:15
+
+--- Empty input handling ---
+[PASS] validate_domain handles empty input
+[INFO] count_lines("") = 0
+
+--- Special character handling ---
+[OK] Special chars rejected: test`command`
+[OK] Special chars rejected: test$(whoami)
+[OK] Special chars rejected: test;ls
+[OK] Special chars rejected: test|cat
+[OK] Special chars rejected: test&bg
+
+--- Large input handling ---
+[OK] Large input (1000 chars) rejected

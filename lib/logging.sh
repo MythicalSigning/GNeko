@@ -864,9 +864,32 @@ log_critical() { neko_log "CRITICAL" "GENERAL" "$1" "${@:2}"; }
 log_alert() { neko_log "ALERT" "GENERAL" "$1" "${@:2}"; }
 log_emergency() { neko_log "EMERGENCY" "GENERAL" "$1" "${@:2}"; }
 
+# Log phase progress (alias for compatibility)
+log_phase() {
+    local phase_name="$1"
+    local phase_status="${2:-started}"
+    local extra_info="${3:-}"
+    
+    case "$phase_status" in
+        start|started|begin)
+            neko_log_phase_start "$phase_name" "$extra_info"
+            ;;
+        end|ended|complete|completed)
+            neko_log_phase_end "$phase_name" "success" "$extra_info"
+            ;;
+        fail|failed|error)
+            neko_log_phase_end "$phase_name" "failure" "$extra_info"
+            ;;
+        *)
+            neko_log "INFO" "PHASE" "[$phase_name] $phase_status" "info=$extra_info"
+            ;;
+    esac
+}
+
 # Export functions
 export -f neko_log_init neko_log neko_log_phase_start neko_log_phase_end
 export -f neko_log_tool_start neko_log_tool_end neko_log_tool_skipped
+export -f log_phase
 export -f neko_log_network neko_log_vulnerability neko_log_subdomain neko_log_url
 export -f neko_log_error neko_log_exception neko_log_config_change neko_log_security
 export -f neko_log_performance neko_perf_start neko_perf_end

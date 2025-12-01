@@ -598,3 +598,238 @@ compress_output() {
         log_success "Output compressed to: $archive_name"
     fi
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL CORE FUNCTIONS
+# Required for comprehensive test coverage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Global array to track background processes
+declare -ga NEKO_CHILD_PIDS=()
+
+# Main cleanup function
+cleanup() {
+    local exit_code="${1:-0}"
+    
+    log_info "Running cleanup..."
+    
+    # Cleanup all child processes
+    cleanup_all_procs
+    
+    # Cleanup temporary files
+    clean_temp_files "${dir:-/tmp}" 2>/dev/null || true
+    
+    # Finalize subsystems
+    type -t orchestrator_cleanup &>/dev/null && orchestrator_cleanup
+    type -t data_bus_cleanup &>/dev/null && data_bus_cleanup
+    type -t queue_cleanup &>/dev/null && queue_cleanup
+    type -t intel_cleanup &>/dev/null && intel_cleanup
+    type -t neko_log_finalize &>/dev/null && neko_log_finalize
+    
+    log_debug "Cleanup completed with exit code: $exit_code"
+    
+    return "$exit_code"
+}
+
+# Cleanup all tracked background processes
+cleanup_all_procs() {
+    log_debug "Cleaning up child processes..."
+    
+    # Kill tracked PIDs
+    for pid in "${NEKO_CHILD_PIDS[@]}"; do
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+    done
+    
+    # Reset the array
+    NEKO_CHILD_PIDS=()
+    
+    # Also kill any process group we may have spawned
+    # This is a safety net for any orphaned processes
+    local current_pgid
+    current_pgid=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    
+    if [[ -n "$current_pgid" ]]; then
+        # Don't kill our own process group, just children
+        for pid in $(pgrep -g "$current_pgid" 2>/dev/null); do
+            [[ "$pid" == "$$" ]] && continue
+            kill "$pid" 2>/dev/null || true
+        done
+    fi
+    
+    log_debug "Child processes cleaned up"
+}
+
+# Register a child process for cleanup
+register_child_pid() {
+    local pid="$1"
+    NEKO_CHILD_PIDS+=("$pid")
+}
+
+# Mark a module as failed
+mark_module_failed() {
+    local module_name="$1"
+    local reason="${2:-Unknown error}"
+    local phase="${3:-unknown}"
+    
+    log_error "Module failed: $module_name - $reason"
+    
+    # Store failure information for reporting
+    local failure_file="${dir:-.}/.tmp/failed_modules.txt"
+    mkdir -p "$(dirname "$failure_file")" 2>/dev/null || true
+    
+    echo "${module_name}:${phase}:${reason}:$(date -Iseconds)" >> "$failure_file"
+    
+    # Update phase status if orchestrator is available
+    if type -t orchestrator_update_status &>/dev/null; then
+        orchestrator_update_status "$phase" "failed" "$reason"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STATE MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# State file location
+declare -g NEKO_STATE_FILE=""
+declare -g NEKO_CHECKPOINT_DIR=""
+
+# Initialize state management
+init_state_management() {
+    local scan_dir="${1:-${dir:-.}}"
+    NEKO_STATE_FILE="${scan_dir}/.state/current.json"
+    NEKO_CHECKPOINT_DIR="${scan_dir}/.state/checkpoints"
+    
+    mkdir -p "$(dirname "$NEKO_STATE_FILE")" 2>/dev/null || true
+    mkdir -p "$NEKO_CHECKPOINT_DIR" 2>/dev/null || true
+}
+
+# Save current state
+save_state() {
+    local state_key="$1"
+    local state_value="$2"
+    
+    [[ -z "$NEKO_STATE_FILE" ]] && init_state_management
+    
+    # Create state file if it doesn't exist
+    if [[ ! -f "$NEKO_STATE_FILE" ]]; then
+        echo '{}' > "$NEKO_STATE_FILE"
+    fi
+    
+    # Update state using jq if available
+    if command_exists jq; then
+        local temp_file="${NEKO_STATE_FILE}.tmp"
+        jq --arg key "$state_key" --arg value "$state_value" \
+            '.[$key] = $value | .last_updated = now | .last_updated_iso = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))' \
+            "$NEKO_STATE_FILE" > "$temp_file" && mv "$temp_file" "$NEKO_STATE_FILE"
+    else
+        # Fallback to simple key=value format
+        echo "${state_key}=${state_value}" >> "${NEKO_STATE_FILE%.json}.txt"
+    fi
+    
+    log_debug "State saved: $state_key"
+}
+
+# Load state value
+load_state() {
+    local state_key="$1"
+    local default_value="${2:-}"
+    
+    [[ -z "$NEKO_STATE_FILE" ]] && init_state_management
+    
+    if [[ ! -f "$NEKO_STATE_FILE" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+    
+    if command_exists jq; then
+        local value
+        value=$(jq -r --arg key "$state_key" '.[$key] // empty' "$NEKO_STATE_FILE" 2>/dev/null)
+        echo "${value:-$default_value}"
+    else
+        # Fallback
+        grep "^${state_key}=" "${NEKO_STATE_FILE%.json}.txt" 2>/dev/null | cut -d= -f2- || echo "$default_value"
+    fi
+}
+
+# Create a checkpoint
+create_checkpoint() {
+    local checkpoint_name="${1:-$(date +%Y%m%d_%H%M%S)}"
+    local description="${2:-Automatic checkpoint}"
+    
+    [[ -z "$NEKO_CHECKPOINT_DIR" ]] && init_state_management
+    
+    local checkpoint_path="${NEKO_CHECKPOINT_DIR}/${checkpoint_name}"
+    mkdir -p "$checkpoint_path"
+    
+    # Save current state
+    if [[ -f "$NEKO_STATE_FILE" ]]; then
+        cp "$NEKO_STATE_FILE" "${checkpoint_path}/state.json"
+    fi
+    
+    # Save checkpoint metadata
+    cat > "${checkpoint_path}/meta.json" << EOF
+{
+    "name": "$checkpoint_name",
+    "description": "$description",
+    "created": "$(date -Iseconds)",
+    "phase": "${CURRENT_PHASE:-unknown}",
+    "target": "${domain:-unknown}"
+}
+EOF
+    
+    # Create marker file for resume functionality
+    echo "$checkpoint_name" > "${NEKO_CHECKPOINT_DIR}/.latest"
+    
+    log_info "Checkpoint created: $checkpoint_name"
+    echo "$checkpoint_path"
+}
+
+# Restore from checkpoint
+restore_checkpoint() {
+    local checkpoint_name="$1"
+    
+    [[ -z "$NEKO_CHECKPOINT_DIR" ]] && init_state_management
+    
+    local checkpoint_path="${NEKO_CHECKPOINT_DIR}/${checkpoint_name}"
+    
+    if [[ ! -d "$checkpoint_path" ]]; then
+        log_error "Checkpoint not found: $checkpoint_name"
+        return 1
+    fi
+    
+    # Restore state
+    if [[ -f "${checkpoint_path}/state.json" ]]; then
+        cp "${checkpoint_path}/state.json" "$NEKO_STATE_FILE"
+    fi
+    
+    log_success "Restored from checkpoint: $checkpoint_name"
+    return 0
+}
+
+# List available checkpoints
+list_checkpoints() {
+    [[ -z "$NEKO_CHECKPOINT_DIR" ]] && init_state_management
+    
+    if [[ ! -d "$NEKO_CHECKPOINT_DIR" ]]; then
+        echo "No checkpoints available"
+        return 0
+    fi
+    
+    echo "Available checkpoints:"
+    for cp_dir in "${NEKO_CHECKPOINT_DIR}"/*/; do
+        [[ -d "$cp_dir" ]] || continue
+        local cp_name=$(basename "$cp_dir")
+        local meta_file="${cp_dir}/meta.json"
+        
+        if [[ -f "$meta_file" ]] && command_exists jq; then
+            local created=$(jq -r '.created // "unknown"' "$meta_file")
+            local desc=$(jq -r '.description // ""' "$meta_file")
+            printf "  - %s (%s) %s\n" "$cp_name" "$created" "$desc"
+        else
+            printf "  - %s\n" "$cp_name"
+        fi
+    done
+}
