@@ -1,0 +1,1645 @@
+################################################################################
+# NEKO DEEP ERROR DETECTION WORKFLOW
+# ============================================================================
+# This workflow performs comprehensive error detection and testing for the
+# Neko Bug Bounty Automation Framework. It tests:
+# - Installation process and dependencies
+# - Syntax validation for all scripts
+# - Library and module loading
+# - Function availability and integration
+# - Configuration validation
+# - API connectivity (where keys are provided)
+#
+# NOTE: This workflow DOES NOT perform actual scanning - it focuses on
+# finding errors in the codebase, installation, and configuration.
+################################################################################
+
+name: Neko Deep Error Detection
+
+on:
+  push:
+    branches: [ main, master, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable extra debug logging'
+        required: false
+        default: 'true'
+        type: boolean
+      skip_installation:
+        description: 'Skip full tool installation (faster but less comprehensive)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  # Workflow settings
+  VERBOSE_LOGGING: 'true'
+  DEBUG_MODE: 'true'
+  LOG_TIMESTAMP_FORMAT: '%Y-%m-%d %H:%M:%S.%3N'
+  
+  # API Keys from secrets
+  CHAOS_API_KEY: ${{ secrets.CHAOS_API_KEY }}
+  SECURITYTRAILS_API_KEY: ${{ secrets.SECURITYTRAILS_API_KEY }}
+  SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.TOKEN }}
+  VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+  
+  # Go configuration
+  GOPATH: /home/runner/go
+  GOROOT: /usr/local/go
+  
+  # Paths
+  TOOLS_PATH: /home/runner/Tools
+  WORDLISTS_PATH: /home/runner/Tools/wordlists
+
+################################################################################
+# JOBS
+################################################################################
+
+jobs:
+  ################################################################################
+  # JOB 1: Environment Information and Setup
+  ################################################################################
+  environment-info:
+    name: "1. Environment Information"
+    runs-on: ubuntu-latest
+    outputs:
+      timestamp: ${{ steps.timestamp.outputs.timestamp }}
+      run_id: ${{ steps.timestamp.outputs.run_id }}
+    steps:
+      - name: Generate timestamps and IDs
+        id: timestamp
+        run: |
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          RUN_ID="${TIMESTAMP}_${{ github.run_number }}"
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "run_id=${RUN_ID}" >> $GITHUB_OUTPUT
+          echo "========================================"
+          echo "NEKO DEEP ERROR DETECTION"
+          echo "========================================"
+          echo "Run ID: ${RUN_ID}"
+          echo "Timestamp: ${TIMESTAMP}"
+          echo "GitHub Event: ${{ github.event_name }}"
+          echo "GitHub Ref: ${{ github.ref }}"
+          echo "========================================"
+
+      - name: System Information
+        run: |
+          echo "========================================"
+          echo "SYSTEM INFORMATION"
+          echo "========================================"
+          echo ""
+          echo "--- Operating System ---"
+          cat /etc/os-release
+          echo ""
+          echo "--- Kernel ---"
+          uname -a
+          echo ""
+          echo "--- CPU Information ---"
+          nproc
+          lscpu | head -20
+          echo ""
+          echo "--- Memory ---"
+          free -h
+          echo ""
+          echo "--- Disk Space ---"
+          df -h /
+          echo ""
+          echo "--- Environment Variables (non-sensitive) ---"
+          env | grep -v "KEY\|TOKEN\|SECRET\|PASS" | sort || true
+          echo ""
+          echo "========================================"
+
+      - name: Check Available Tools
+        run: |
+          echo "========================================"
+          echo "PRE-INSTALLED TOOLS CHECK"
+          echo "========================================"
+          
+          check_tool() {
+            local tool=$1
+            if command -v "$tool" &>/dev/null; then
+              echo "[OK] $tool: $(command -v $tool) - $($tool --version 2>/dev/null | head -1 || echo 'version unknown')"
+            else
+              echo "[MISSING] $tool"
+            fi
+          }
+          
+          echo ""
+          echo "--- Essential Tools ---"
+          check_tool bash
+          check_tool curl
+          check_tool wget
+          check_tool git
+          check_tool jq
+          check_tool python3
+          check_tool pip3
+          check_tool go
+          check_tool make
+          
+          echo ""
+          echo "--- Network Tools ---"
+          check_tool nmap
+          check_tool nc
+          check_tool whois
+          check_tool dig
+          
+          echo ""
+          echo "========================================"
+
+  ################################################################################
+  # JOB 2: Syntax Validation
+  ################################################################################
+  syntax-validation:
+    name: "2. Syntax Validation"
+    runs-on: ubuntu-latest
+    needs: environment-info
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Create Log Directory
+        run: |
+          mkdir -p logs/syntax
+          echo "Run ID: ${{ needs.environment-info.outputs.run_id }}" > logs/syntax/run_info.txt
+          echo "Started: $(date)" >> logs/syntax/run_info.txt
+
+      - name: Validate Bash Script Syntax - All Scripts
+        id: bash_syntax
+        run: |
+          echo "========================================"
+          echo "BASH SYNTAX VALIDATION"
+          echo "========================================"
+          
+          SYNTAX_LOG="logs/syntax/bash_syntax_results.log"
+          ERROR_LOG="logs/syntax/bash_syntax_errors.log"
+          DETAILED_LOG="logs/syntax/bash_syntax_detailed.log"
+          
+          echo "Timestamp: $(date)" > "$SYNTAX_LOG"
+          echo "Timestamp: $(date)" > "$ERROR_LOG"
+          echo "Timestamp: $(date)" > "$DETAILED_LOG"
+          
+          TOTAL=0
+          PASSED=0
+          FAILED=0
+          WARNINGS=0
+          
+          # Find all shell scripts
+          echo "" >> "$DETAILED_LOG"
+          echo "=== Finding all shell scripts ===" >> "$DETAILED_LOG"
+          
+          find . -name "*.sh" -type f ! -path "./.git/*" | while read -r script; do
+            TOTAL=$((TOTAL + 1))
+            echo "" >> "$DETAILED_LOG"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$DETAILED_LOG"
+            echo "Script: $script" >> "$DETAILED_LOG"
+            echo "Size: $(wc -c < "$script") bytes" >> "$DETAILED_LOG"
+            echo "Lines: $(wc -l < "$script")" >> "$DETAILED_LOG"
+            
+            # Check syntax with bash -n
+            if bash -n "$script" 2>"${script}.syntax_err"; then
+              echo "[PASS] $script" >> "$SYNTAX_LOG"
+              echo "Syntax: VALID" >> "$DETAILED_LOG"
+              PASSED=$((PASSED + 1))
+            else
+              echo "[FAIL] $script" >> "$SYNTAX_LOG"
+              echo "[ERROR] $script:" >> "$ERROR_LOG"
+              cat "${script}.syntax_err" >> "$ERROR_LOG"
+              echo "" >> "$ERROR_LOG"
+              echo "Syntax: INVALID" >> "$DETAILED_LOG"
+              echo "Error Details:" >> "$DETAILED_LOG"
+              cat "${script}.syntax_err" >> "$DETAILED_LOG"
+              FAILED=$((FAILED + 1))
+            fi
+            rm -f "${script}.syntax_err"
+            
+            # Check for common issues (warnings)
+            echo "" >> "$DETAILED_LOG"
+            echo "Common Issue Checks:" >> "$DETAILED_LOG"
+            
+            # Check for undefined variables (basic check)
+            if grep -n '\$[a-zA-Z_][a-zA-Z0-9_]*' "$script" | head -10 >> "$DETAILED_LOG" 2>/dev/null; then
+              :
+            fi
+            
+            # Check for potential quoting issues
+            if grep -nE '\$[a-zA-Z_][a-zA-Z0-9_]*[^"]' "$script" 2>/dev/null | head -5; then
+              echo "  [WARN] Potential unquoted variable expansion detected" >> "$DETAILED_LOG"
+              WARNINGS=$((WARNINGS + 1))
+            fi
+            
+          done
+          
+          # Count totals
+          TOTAL=$(find . -name "*.sh" -type f ! -path "./.git/*" | wc -l)
+          PASSED=$(grep -c "\[PASS\]" "$SYNTAX_LOG" 2>/dev/null || echo 0)
+          FAILED=$(grep -c "\[FAIL\]" "$SYNTAX_LOG" 2>/dev/null || echo 0)
+          
+          echo "" >> "$SYNTAX_LOG"
+          echo "========================================"  >> "$SYNTAX_LOG"
+          echo "SUMMARY" >> "$SYNTAX_LOG"
+          echo "========================================" >> "$SYNTAX_LOG"
+          echo "Total Scripts: $TOTAL" >> "$SYNTAX_LOG"
+          echo "Passed: $PASSED" >> "$SYNTAX_LOG"
+          echo "Failed: $FAILED" >> "$SYNTAX_LOG"
+          echo "Warnings: $WARNINGS" >> "$SYNTAX_LOG"
+          
+          cat "$SYNTAX_LOG"
+          
+          # Set output
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          
+          if [[ $FAILED -gt 0 ]]; then
+            echo ""
+            echo "========================================"
+            echo "SYNTAX ERRORS FOUND"
+            echo "========================================"
+            cat "$ERROR_LOG"
+            exit 1
+          fi
+
+      - name: ShellCheck Analysis
+        id: shellcheck
+        continue-on-error: true
+        run: |
+          echo "========================================"
+          echo "SHELLCHECK STATIC ANALYSIS"
+          echo "========================================"
+          
+          SHELLCHECK_LOG="logs/syntax/shellcheck_results.log"
+          SHELLCHECK_JSON="logs/syntax/shellcheck_results.json"
+          
+          # Install shellcheck
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          
+          echo "Timestamp: $(date)" > "$SHELLCHECK_LOG"
+          echo "[" > "$SHELLCHECK_JSON"
+          
+          ISSUES_FOUND=0
+          FIRST=true
+          
+          find . -name "*.sh" -type f ! -path "./.git/*" | while read -r script; do
+            echo "" >> "$SHELLCHECK_LOG"
+            echo "━━━ $script ━━━" >> "$SHELLCHECK_LOG"
+            
+            # Run shellcheck and capture output
+            if shellcheck -f gcc "$script" >> "$SHELLCHECK_LOG" 2>&1; then
+              echo "  [OK] No issues" >> "$SHELLCHECK_LOG"
+            else
+              ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            fi
+            
+            # JSON output
+            if [[ "$FIRST" != "true" ]]; then
+              echo "," >> "$SHELLCHECK_JSON"
+            fi
+            FIRST=false
+            
+            shellcheck -f json "$script" 2>/dev/null >> "$SHELLCHECK_JSON" || echo "[]" >> "$SHELLCHECK_JSON"
+            
+          done
+          
+          echo "]" >> "$SHELLCHECK_JSON"
+          
+          echo "" >> "$SHELLCHECK_LOG"
+          echo "========================================"
+          echo "ShellCheck analysis complete"
+          echo "========================================"
+          
+          # Show summary
+          ERROR_COUNT=$(grep -c ":error:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
+          WARN_COUNT=$(grep -c ":warning:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
+          NOTE_COUNT=$(grep -c ":note:" "$SHELLCHECK_LOG" 2>/dev/null || echo 0)
+          
+          echo "Errors: $ERROR_COUNT"
+          echo "Warnings: $WARN_COUNT"
+          echo "Notes: $NOTE_COUNT"
+          
+          # Show first 50 issues
+          echo ""
+          echo "=== Top Issues ==="
+          head -100 "$SHELLCHECK_LOG"
+
+      - name: Upload Syntax Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: syntax-validation-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/syntax/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 3: Configuration Validation
+  ################################################################################
+  config-validation:
+    name: "3. Configuration Validation"
+    runs-on: ubuntu-latest
+    needs: environment-info
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/config
+
+      - name: Validate neko.cfg
+        id: config_validation
+        run: |
+          echo "========================================"
+          echo "CONFIGURATION FILE VALIDATION"
+          echo "========================================"
+          
+          CONFIG_LOG="logs/config/config_validation.log"
+          echo "Timestamp: $(date)" > "$CONFIG_LOG"
+          
+          CONFIG_FILE="neko.cfg"
+          
+          if [[ ! -f "$CONFIG_FILE" ]]; then
+            echo "[CRITICAL] neko.cfg not found!" | tee -a "$CONFIG_LOG"
+            exit 1
+          fi
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== Configuration File Details ===" >> "$CONFIG_LOG"
+          echo "File: $CONFIG_FILE" >> "$CONFIG_LOG"
+          echo "Size: $(wc -c < "$CONFIG_FILE") bytes" >> "$CONFIG_LOG"
+          echo "Lines: $(wc -l < "$CONFIG_FILE")" >> "$CONFIG_LOG"
+          echo "Variables: $(grep -c '^\s*[A-Z_]*=' "$CONFIG_FILE" 2>/dev/null || echo 0)" >> "$CONFIG_LOG"
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== Syntax Check ===" >> "$CONFIG_LOG"
+          
+          if bash -n "$CONFIG_FILE" 2>&1 | tee -a "$CONFIG_LOG"; then
+            echo "[PASS] Configuration syntax is valid" | tee -a "$CONFIG_LOG"
+          else
+            echo "[FAIL] Configuration has syntax errors" | tee -a "$CONFIG_LOG"
+            exit 1
+          fi
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== Loading Configuration ===" >> "$CONFIG_LOG"
+          
+          # Try to source the config in a subshell
+          if (source "$CONFIG_FILE" 2>&1) | tee -a "$CONFIG_LOG"; then
+            echo "[PASS] Configuration loads successfully" | tee -a "$CONFIG_LOG"
+          else
+            echo "[FAIL] Configuration failed to load" | tee -a "$CONFIG_LOG"
+            exit 1
+          fi
+          
+          # Source for variable checking
+          source "$CONFIG_FILE"
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== Required Variables Check ===" >> "$CONFIG_LOG"
+          
+          REQUIRED_VARS=(
+            "TOOLS_PATH"
+            "USER_AGENT"
+            "OSINT_ENABLED"
+            "SUBDOMAIN_ENABLED"
+            "DNS_ENABLED"
+            "WEBPROBE_ENABLED"
+            "PORTSCAN_ENABLED"
+            "VULNSCAN_ENABLED"
+            "PARALLEL_ENABLED"
+            "LOGGING_ENABLED"
+          )
+          
+          MISSING=0
+          for var in "${REQUIRED_VARS[@]}"; do
+            if [[ -z "${!var+x}" ]]; then
+              echo "[MISSING] $var" | tee -a "$CONFIG_LOG"
+              MISSING=$((MISSING + 1))
+            else
+              echo "[OK] $var = ${!var}" | tee -a "$CONFIG_LOG"
+            fi
+          done
+          
+          if [[ $MISSING -gt 0 ]]; then
+            echo "" | tee -a "$CONFIG_LOG"
+            echo "[WARNING] $MISSING required variables are missing" | tee -a "$CONFIG_LOG"
+          fi
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== API Keys Status ===" >> "$CONFIG_LOG"
+          
+          # Check API keys (don't show values, just status)
+          API_KEYS=(
+            "GITHUB_TOKEN"
+            "SHODAN_API_KEY"
+            "VIRUSTOTAL_API_KEY"
+            "SECURITYTRAILS_API_KEY"
+            "CHAOS_API_KEY"
+            "CENSYS_API_ID"
+            "CENSYS_API_SECRET"
+          )
+          
+          for key in "${API_KEYS[@]}"; do
+            if [[ -n "${!key}" ]]; then
+              echo "[CONFIGURED] $key (length: ${#!key})" | tee -a "$CONFIG_LOG"
+            else
+              echo "[NOT SET] $key" | tee -a "$CONFIG_LOG"
+            fi
+          done
+          
+          echo "" >> "$CONFIG_LOG"
+          echo "=== All Defined Variables ===" >> "$CONFIG_LOG"
+          grep -E '^\s*[A-Z_]+=.*' "$CONFIG_FILE" | grep -v 'KEY\|TOKEN\|SECRET\|PASS' | head -100 >> "$CONFIG_LOG"
+          
+          cat "$CONFIG_LOG"
+
+      - name: Validate plugins.json
+        run: |
+          echo "========================================"
+          echo "PLUGINS CONFIGURATION VALIDATION"
+          echo "========================================"
+          
+          PLUGINS_FILE="config/plugins.json"
+          
+          if [[ -f "$PLUGINS_FILE" ]]; then
+            echo "Validating: $PLUGINS_FILE"
+            if jq '.' "$PLUGINS_FILE" > /dev/null 2>&1; then
+              echo "[PASS] Valid JSON"
+              jq '.' "$PLUGINS_FILE"
+            else
+              echo "[FAIL] Invalid JSON"
+              cat "$PLUGINS_FILE"
+            fi
+          else
+            echo "[SKIP] plugins.json not found"
+          fi
+
+      - name: Upload Config Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: config-validation-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/config/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 4: File Structure Validation
+  ################################################################################
+  structure-validation:
+    name: "4. File Structure Validation"
+    runs-on: ubuntu-latest
+    needs: environment-info
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/structure
+
+      - name: Validate Project Structure
+        run: |
+          echo "========================================"
+          echo "PROJECT STRUCTURE VALIDATION"
+          echo "========================================"
+          
+          STRUCTURE_LOG="logs/structure/structure_validation.log"
+          echo "Timestamp: $(date)" > "$STRUCTURE_LOG"
+          
+          # Required directories
+          REQUIRED_DIRS=(
+            "modules"
+            "lib"
+            "config"
+            "plugins"
+          )
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "=== Required Directories ===" >> "$STRUCTURE_LOG"
+          
+          MISSING_DIRS=0
+          for dir in "${REQUIRED_DIRS[@]}"; do
+            if [[ -d "$dir" ]]; then
+              COUNT=$(find "$dir" -type f | wc -l)
+              echo "[OK] $dir/ ($COUNT files)" | tee -a "$STRUCTURE_LOG"
+            else
+              echo "[MISSING] $dir/" | tee -a "$STRUCTURE_LOG"
+              MISSING_DIRS=$((MISSING_DIRS + 1))
+            fi
+          done
+          
+          # Required files
+          REQUIRED_FILES=(
+            "neko.sh"
+            "neko.cfg"
+            "install.sh"
+            "README.md"
+          )
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "=== Required Files ===" >> "$STRUCTURE_LOG"
+          
+          MISSING_FILES=0
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+              LINES=$(wc -l < "$file")
+              SIZE=$(wc -c < "$file")
+              echo "[OK] $file ($LINES lines, $SIZE bytes)" | tee -a "$STRUCTURE_LOG"
+            else
+              echo "[MISSING] $file" | tee -a "$STRUCTURE_LOG"
+              MISSING_FILES=$((MISSING_FILES + 1))
+            fi
+          done
+          
+          # Expected modules
+          EXPECTED_MODULES=(
+            "00_osint.sh"
+            "01_subdomain.sh"
+            "02_dns.sh"
+            "03_webprobe.sh"
+            "04_portscan.sh"
+            "05_content.sh"
+            "06_fingerprint.sh"
+            "07_urlanalysis.sh"
+            "08_params.sh"
+            "09_vulnscan.sh"
+            "10_xss.sh"
+            "11_takeover.sh"
+            "12_cloud.sh"
+            "13_auth.sh"
+            "14_api.sh"
+            "15_report.sh"
+            "16_advanced_vulns.sh"
+            "17_bettercap.sh"
+          )
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "=== Expected Modules ===" >> "$STRUCTURE_LOG"
+          
+          MISSING_MODULES=0
+          for module in "${EXPECTED_MODULES[@]}"; do
+            if [[ -f "modules/$module" ]]; then
+              LINES=$(wc -l < "modules/$module")
+              echo "[OK] modules/$module ($LINES lines)" | tee -a "$STRUCTURE_LOG"
+            else
+              echo "[MISSING] modules/$module" | tee -a "$STRUCTURE_LOG"
+              MISSING_MODULES=$((MISSING_MODULES + 1))
+            fi
+          done
+          
+          # Expected libraries
+          EXPECTED_LIBS=(
+            "core.sh"
+            "logging.sh"
+            "discord_notifications.sh"
+            "parallel.sh"
+            "async_pipeline.sh"
+            "error_handling.sh"
+            "error_reporting.sh"
+            "queue_manager.sh"
+            "data_flow_bus.sh"
+            "orchestrator.sh"
+            "proxy_rotation.sh"
+            "intelligence.sh"
+            "plugin.sh"
+          )
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "=== Expected Libraries ===" >> "$STRUCTURE_LOG"
+          
+          MISSING_LIBS=0
+          for lib in "${EXPECTED_LIBS[@]}"; do
+            if [[ -f "lib/$lib" ]]; then
+              LINES=$(wc -l < "lib/$lib")
+              echo "[OK] lib/$lib ($LINES lines)" | tee -a "$STRUCTURE_LOG"
+            else
+              echo "[MISSING] lib/$lib" | tee -a "$STRUCTURE_LOG"
+              MISSING_LIBS=$((MISSING_LIBS + 1))
+            fi
+          done
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "=== Complete Directory Tree ===" >> "$STRUCTURE_LOG"
+          tree -a -I '.git' --noreport . >> "$STRUCTURE_LOG" 2>/dev/null || find . -not -path './.git/*' -type f | sort >> "$STRUCTURE_LOG"
+          
+          echo "" >> "$STRUCTURE_LOG"
+          echo "========================================"
+          echo "SUMMARY"
+          echo "========================================"
+          echo "Missing Directories: $MISSING_DIRS" | tee -a "$STRUCTURE_LOG"
+          echo "Missing Files: $MISSING_FILES" | tee -a "$STRUCTURE_LOG"
+          echo "Missing Modules: $MISSING_MODULES" | tee -a "$STRUCTURE_LOG"
+          echo "Missing Libraries: $MISSING_LIBS" | tee -a "$STRUCTURE_LOG"
+          
+          cat "$STRUCTURE_LOG"
+          
+          if [[ $MISSING_FILES -gt 0 ]] || [[ $MISSING_DIRS -gt 0 ]]; then
+            echo ""
+            echo "[ERROR] Critical structure issues found!"
+            exit 1
+          fi
+
+      - name: Upload Structure Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: structure-validation-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/structure/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 5: Library Loading Tests
+  ################################################################################
+  library-tests:
+    name: "5. Library Loading Tests"
+    runs-on: ubuntu-latest
+    needs: [environment-info, syntax-validation]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/library
+
+      - name: Test Library Loading Order
+        run: |
+          echo "========================================"
+          echo "LIBRARY LOADING TESTS"
+          echo "========================================"
+          
+          LIB_LOG="logs/library/library_loading.log"
+          LIB_ERRORS="logs/library/library_errors.log"
+          
+          echo "Timestamp: $(date)" > "$LIB_LOG"
+          echo "Timestamp: $(date)" > "$LIB_ERRORS"
+          
+          # Required environment setup
+          export SCRIPTPATH="$(pwd)"
+          export LIB_PATH="${SCRIPTPATH}/lib"
+          export MODULES_PATH="${SCRIPTPATH}/modules"
+          export CONFIG_PATH="${SCRIPTPATH}/config"
+          export DEBUG=true
+          export domain="test.example.com"
+          export mode="test"
+          export dir="/tmp/neko_test_$$"
+          export called_fn_dir="${dir}/.called"
+          export LOGFILE="${dir}/test.log"
+          
+          mkdir -p "$dir"/{logs,.tmp,.called}
+          touch "$LOGFILE"
+          
+          # Load config first
+          echo "" >> "$LIB_LOG"
+          echo "=== Loading Configuration ===" >> "$LIB_LOG"
+          
+          if source neko.cfg 2>&1 | tee -a "$LIB_LOG"; then
+            echo "[PASS] Configuration loaded" | tee -a "$LIB_LOG"
+          else
+            echo "[FAIL] Configuration failed to load" | tee -a "$LIB_LOG"
+            echo "Config load error" >> "$LIB_ERRORS"
+          fi
+          
+          # Library load order (in dependency order)
+          LIBRARIES=(
+            "core.sh"
+            "logging.sh"
+            "discord_notifications.sh"
+            "parallel.sh"
+            "async_pipeline.sh"
+            "error_handling.sh"
+            "error_reporting.sh"
+            "queue_manager.sh"
+            "data_flow_bus.sh"
+            "orchestrator.sh"
+            "proxy_rotation.sh"
+            "intelligence.sh"
+            "plugin.sh"
+          )
+          
+          echo "" >> "$LIB_LOG"
+          echo "=== Loading Libraries in Order ===" >> "$LIB_LOG"
+          
+          LOAD_SUCCESS=0
+          LOAD_FAIL=0
+          
+          for lib in "${LIBRARIES[@]}"; do
+            echo "" >> "$LIB_LOG"
+            echo "━━━ Loading: $lib ━━━" >> "$LIB_LOG"
+            
+            if [[ -f "lib/$lib" ]]; then
+              # Try to source the library
+              if source "lib/$lib" 2>&1 | tee -a "$LIB_LOG"; then
+                echo "[PASS] $lib loaded successfully" | tee -a "$LIB_LOG"
+                LOAD_SUCCESS=$((LOAD_SUCCESS + 1))
+              else
+                echo "[FAIL] $lib failed to load" | tee -a "$LIB_LOG"
+                echo "Library: $lib" >> "$LIB_ERRORS"
+                LOAD_FAIL=$((LOAD_FAIL + 1))
+              fi
+            else
+              echo "[SKIP] $lib not found" | tee -a "$LIB_LOG"
+            fi
+          done
+          
+          echo "" >> "$LIB_LOG"
+          echo "========================================"
+          echo "LIBRARY LOADING SUMMARY"
+          echo "========================================"
+          echo "Successful: $LOAD_SUCCESS" | tee -a "$LIB_LOG"
+          echo "Failed: $LOAD_FAIL" | tee -a "$LIB_LOG"
+          
+          # Cleanup
+          rm -rf "$dir"
+          
+          cat "$LIB_LOG"
+          
+          if [[ $LOAD_FAIL -gt 0 ]]; then
+            echo ""
+            echo "[ERROR] Some libraries failed to load"
+            cat "$LIB_ERRORS"
+            exit 1
+          fi
+
+      - name: Test Core Functions
+        run: |
+          echo "========================================"
+          echo "CORE FUNCTIONS TEST"
+          echo "========================================"
+          
+          FUNC_LOG="logs/library/function_tests.log"
+          echo "Timestamp: $(date)" > "$FUNC_LOG"
+          
+          # Setup
+          export SCRIPTPATH="$(pwd)"
+          export dir="/tmp/neko_test_$$"
+          export called_fn_dir="${dir}/.called"
+          export LOGFILE="${dir}/test.log"
+          export DEBUG=true
+          export domain="test.example.com"
+          
+          mkdir -p "$dir"/{logs,.tmp,.called}
+          touch "$LOGFILE"
+          
+          source neko.cfg 2>/dev/null || true
+          source lib/core.sh 2>/dev/null || true
+          
+          echo "" >> "$FUNC_LOG"
+          echo "=== Testing Core Functions ===" >> "$FUNC_LOG"
+          
+          TESTS_PASSED=0
+          TESTS_FAILED=0
+          
+          # Test command_exists
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing command_exists ---" >> "$FUNC_LOG"
+          if type -t command_exists &>/dev/null; then
+            if command_exists bash; then
+              echo "[PASS] command_exists('bash') = true" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] command_exists('bash') should be true" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+            
+            if ! command_exists nonexistent_command_xyz; then
+              echo "[PASS] command_exists('nonexistent') = false" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] command_exists('nonexistent') should be false" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] command_exists not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          # Test validate_domain
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing validate_domain ---" >> "$FUNC_LOG"
+          if type -t validate_domain &>/dev/null; then
+            if validate_domain "example.com"; then
+              echo "[PASS] validate_domain('example.com') = valid" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] validate_domain('example.com') should be valid" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+            
+            if validate_domain "sub.example.com"; then
+              echo "[PASS] validate_domain('sub.example.com') = valid" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] validate_domain('sub.example.com') should be valid" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+            
+            if validate_domain "192.168.1.1"; then
+              echo "[PASS] validate_domain('192.168.1.1') = valid (IP)" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] validate_domain('192.168.1.1') should be valid" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] validate_domain not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          # Test is_ip
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing is_ip ---" >> "$FUNC_LOG"
+          if type -t is_ip &>/dev/null; then
+            if is_ip "192.168.1.1"; then
+              echo "[PASS] is_ip('192.168.1.1') = true" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] is_ip('192.168.1.1') should be true" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] is_ip not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          # Test ensure_dir
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing ensure_dir ---" >> "$FUNC_LOG"
+          if type -t ensure_dir &>/dev/null; then
+            TEST_DIR="/tmp/neko_test_ensure_$$"
+            ensure_dir "$TEST_DIR"
+            if [[ -d "$TEST_DIR" ]]; then
+              echo "[PASS] ensure_dir created directory" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+              rmdir "$TEST_DIR"
+            else
+              echo "[FAIL] ensure_dir did not create directory" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] ensure_dir not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          # Test timestamp
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing timestamp ---" >> "$FUNC_LOG"
+          if type -t timestamp &>/dev/null; then
+            TS=$(timestamp)
+            if [[ "$TS" =~ ^[0-9]{8}_[0-9]{6}$ ]]; then
+              echo "[PASS] timestamp format correct: $TS" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] timestamp format incorrect: $TS" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] timestamp not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          # Test count_lines
+          echo "" >> "$FUNC_LOG"
+          echo "--- Testing count_lines ---" >> "$FUNC_LOG"
+          if type -t count_lines &>/dev/null; then
+            echo -e "line1\nline2\nline3" > /tmp/test_count_$$
+            COUNT=$(count_lines /tmp/test_count_$$)
+            rm -f /tmp/test_count_$$
+            
+            if [[ "$COUNT" == "3" ]]; then
+              echo "[PASS] count_lines returned: $COUNT" | tee -a "$FUNC_LOG"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "[FAIL] count_lines returned: $COUNT (expected: 3)" | tee -a "$FUNC_LOG"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "[SKIP] count_lines not defined" | tee -a "$FUNC_LOG"
+          fi
+          
+          echo "" >> "$FUNC_LOG"
+          echo "========================================"
+          echo "FUNCTION TESTS SUMMARY"
+          echo "========================================"
+          echo "Passed: $TESTS_PASSED" | tee -a "$FUNC_LOG"
+          echo "Failed: $TESTS_FAILED" | tee -a "$FUNC_LOG"
+          
+          # Cleanup
+          rm -rf "$dir"
+          
+          cat "$FUNC_LOG"
+          
+          if [[ $TESTS_FAILED -gt 0 ]]; then
+            echo "[WARNING] Some function tests failed"
+          fi
+
+      - name: Upload Library Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: library-tests-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/library/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 6: Module Loading Tests
+  ################################################################################
+  module-tests:
+    name: "6. Module Loading Tests"
+    runs-on: ubuntu-latest
+    needs: [environment-info, library-tests]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/module
+
+      - name: Test Module Loading
+        run: |
+          echo "========================================"
+          echo "MODULE LOADING TESTS"
+          echo "========================================"
+          
+          MODULE_LOG="logs/module/module_loading.log"
+          MODULE_FUNC="logs/module/module_functions.log"
+          
+          echo "Timestamp: $(date)" > "$MODULE_LOG"
+          echo "Timestamp: $(date)" > "$MODULE_FUNC"
+          
+          # Setup environment
+          export SCRIPTPATH="$(pwd)"
+          export LIB_PATH="${SCRIPTPATH}/lib"
+          export MODULES_PATH="${SCRIPTPATH}/modules"
+          export CONFIG_PATH="${SCRIPTPATH}/config"
+          export DEBUG=true
+          export domain="test.example.com"
+          export mode="test"
+          export dir="/tmp/neko_test_$$"
+          export called_fn_dir="${dir}/.called"
+          export LOGFILE="${dir}/test.log"
+          
+          mkdir -p "$dir"/{logs,.tmp,.called,osint,subdomains,dns,hosts,webs,ports,content,technologies,urls,js,parameters,vulnerabilities,xss,takeover,cloud,auth,api,reports}
+          touch "$LOGFILE"
+          
+          # Load configuration and all libraries
+          echo "=== Loading Prerequisites ===" >> "$MODULE_LOG"
+          source neko.cfg 2>/dev/null || true
+          
+          for lib in lib/*.sh; do
+            source "$lib" 2>/dev/null || true
+          done
+          
+          # Module definitions
+          declare -A MODULE_FUNCTIONS=(
+            ["00_osint.sh"]="osint_main"
+            ["01_subdomain.sh"]="subdomain_main"
+            ["02_dns.sh"]="dns_main"
+            ["03_webprobe.sh"]="webprobe_main"
+            ["04_portscan.sh"]="portscan_main"
+            ["05_content.sh"]="content_main"
+            ["06_fingerprint.sh"]="fingerprint_main"
+            ["07_urlanalysis.sh"]="urlanalysis_main"
+            ["08_params.sh"]="param_main"
+            ["09_vulnscan.sh"]="vulnscan_main"
+            ["10_xss.sh"]="xss_main"
+            ["11_takeover.sh"]="takeover_main"
+            ["12_cloud.sh"]="cloud_main"
+            ["13_auth.sh"]="auth_main"
+            ["14_api.sh"]="api_main"
+            ["15_report.sh"]="report_main"
+            ["16_advanced_vulns.sh"]="advanced_vulns_main"
+            ["17_bettercap.sh"]="bettercap_main"
+          )
+          
+          echo "" >> "$MODULE_LOG"
+          echo "=== Loading Modules ===" >> "$MODULE_LOG"
+          
+          LOAD_SUCCESS=0
+          LOAD_FAIL=0
+          FUNC_FOUND=0
+          FUNC_MISSING=0
+          
+          for module in modules/*.sh; do
+            MODULE_NAME=$(basename "$module")
+            
+            echo "" >> "$MODULE_LOG"
+            echo "━━━ Loading: $MODULE_NAME ━━━" >> "$MODULE_LOG"
+            
+            # Try to source the module
+            if source "$module" 2>&1 | tee -a "$MODULE_LOG"; then
+              echo "[PASS] $MODULE_NAME loaded" | tee -a "$MODULE_LOG"
+              LOAD_SUCCESS=$((LOAD_SUCCESS + 1))
+              
+              # Check for expected main function
+              EXPECTED_FUNC="${MODULE_FUNCTIONS[$MODULE_NAME]}"
+              if [[ -n "$EXPECTED_FUNC" ]]; then
+                if type -t "$EXPECTED_FUNC" &>/dev/null; then
+                  echo "  [FUNC] $EXPECTED_FUNC: FOUND" | tee -a "$MODULE_LOG"
+                  echo "$MODULE_NAME: $EXPECTED_FUNC = FOUND" >> "$MODULE_FUNC"
+                  FUNC_FOUND=$((FUNC_FOUND + 1))
+                else
+                  echo "  [FUNC] $EXPECTED_FUNC: MISSING" | tee -a "$MODULE_LOG"
+                  echo "$MODULE_NAME: $EXPECTED_FUNC = MISSING" >> "$MODULE_FUNC"
+                  FUNC_MISSING=$((FUNC_MISSING + 1))
+                fi
+              fi
+            else
+              echo "[FAIL] $MODULE_NAME failed to load" | tee -a "$MODULE_LOG"
+              LOAD_FAIL=$((LOAD_FAIL + 1))
+            fi
+          done
+          
+          echo "" >> "$MODULE_LOG"
+          echo "========================================"
+          echo "MODULE LOADING SUMMARY"
+          echo "========================================"
+          echo "Modules Loaded: $LOAD_SUCCESS" | tee -a "$MODULE_LOG"
+          echo "Modules Failed: $LOAD_FAIL" | tee -a "$MODULE_LOG"
+          echo "Functions Found: $FUNC_FOUND" | tee -a "$MODULE_LOG"
+          echo "Functions Missing: $FUNC_MISSING" | tee -a "$MODULE_LOG"
+          
+          # Cleanup
+          rm -rf "$dir"
+          
+          echo ""
+          echo "=== Function Availability ===" 
+          cat "$MODULE_FUNC"
+          
+          if [[ $LOAD_FAIL -gt 0 ]]; then
+            echo ""
+            echo "[ERROR] Some modules failed to load"
+            exit 1
+          fi
+
+      - name: Upload Module Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: module-tests-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/module/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 7: Main Script Tests
+  ################################################################################
+  main-script-tests:
+    name: "7. Main Script Tests"
+    runs-on: ubuntu-latest
+    needs: [environment-info, module-tests]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/main
+
+      - name: Make Scripts Executable
+        run: |
+          chmod +x neko.sh install.sh run_tests.sh
+          chmod +x modules/*.sh lib/*.sh 2>/dev/null || true
+
+      - name: Test Help Command
+        run: |
+          echo "========================================"
+          echo "TESTING HELP COMMAND"
+          echo "========================================"
+          
+          ./neko.sh --help > logs/main/help_output.log 2>&1 || true
+          
+          echo "=== Help Output ===" 
+          cat logs/main/help_output.log
+          
+          # Check help output contains expected content
+          if grep -q "USAGE" logs/main/help_output.log; then
+            echo "[PASS] Help contains USAGE"
+          else
+            echo "[WARN] Help missing USAGE section"
+          fi
+          
+          if grep -q "\-d" logs/main/help_output.log || grep -q "\-\-domain" logs/main/help_output.log; then
+            echo "[PASS] Help documents -d/--domain option"
+          else
+            echo "[WARN] Help missing domain option"
+          fi
+
+      - name: Test Version Command
+        run: |
+          echo "========================================"
+          echo "TESTING VERSION COMMAND"
+          echo "========================================"
+          
+          ./neko.sh --version > logs/main/version_output.log 2>&1 || true
+          
+          VERSION=$(cat logs/main/version_output.log)
+          echo "Version output: $VERSION"
+          
+          if [[ "$VERSION" =~ ^Neko ]]; then
+            echo "[PASS] Version format correct"
+          else
+            echo "[WARN] Unexpected version format: $VERSION"
+          fi
+
+      - name: Test Check-Tools Command
+        continue-on-error: true
+        run: |
+          echo "========================================"
+          echo "TESTING CHECK-TOOLS COMMAND"
+          echo "========================================"
+          
+          ./neko.sh --check-tools > logs/main/check_tools_output.log 2>&1 || true
+          
+          echo "=== Check Tools Output ==="
+          cat logs/main/check_tools_output.log
+          
+          # This is expected to show missing tools - that's fine for testing
+
+      - name: Test Invalid Arguments
+        run: |
+          echo "========================================"
+          echo "TESTING INVALID ARGUMENTS"
+          echo "========================================"
+          
+          # Test missing domain
+          echo "--- Testing missing domain ---"
+          if ./neko.sh 2>&1 | tee logs/main/no_domain.log; then
+            echo "[WARN] Should have failed without domain"
+          else
+            echo "[PASS] Correctly requires domain"
+          fi
+          
+          # Test invalid option
+          echo ""
+          echo "--- Testing invalid option ---"
+          if ./neko.sh --invalid-option 2>&1 | tee logs/main/invalid_option.log; then
+            echo "[WARN] Should have failed with invalid option"
+          else
+            echo "[PASS] Correctly rejects invalid option"
+          fi
+
+      - name: Upload Main Script Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: main-script-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/main/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 8: Installation Tests (Full)
+  ################################################################################
+  installation-tests:
+    name: "8. Installation Tests"
+    runs-on: ubuntu-latest
+    needs: [environment-info, main-script-tests]
+    if: ${{ github.event.inputs.skip_installation != 'true' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/install
+
+      - name: System Preparation
+        run: |
+          echo "========================================"
+          echo "SYSTEM PREPARATION"
+          echo "========================================"
+          
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl wget git jq python3 python3-pip python3-venv \
+            build-essential libpcap-dev libssl-dev \
+            nmap whois dnsutils bc netcat-openbsd \
+            parallel sqlite3 2>&1 | tee logs/install/system_prep.log
+          
+          echo ""
+          echo "[OK] System packages installed"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          
+      - name: Verify Go Installation
+        run: |
+          echo "========================================"
+          echo "GO INSTALLATION VERIFICATION"
+          echo "========================================"
+          
+          go version
+          echo "GOPATH: $GOPATH"
+          echo "GOROOT: $GOROOT"
+          
+          # Add Go bin to path
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          echo "PATH: $PATH"
+
+      - name: Install Go Tools (Sample)
+        run: |
+          echo "========================================"
+          echo "INSTALLING SAMPLE GO TOOLS"
+          echo "========================================"
+          
+          INSTALL_LOG="logs/install/go_tools.log"
+          echo "Timestamp: $(date)" > "$INSTALL_LOG"
+          
+          # Install a selection of critical Go tools
+          GO_TOOLS=(
+            "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+            "github.com/projectdiscovery/httpx/cmd/httpx@latest"
+            "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+            "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+            "github.com/tomnomnom/anew@latest"
+          )
+          
+          INSTALLED=0
+          FAILED=0
+          
+          for tool in "${GO_TOOLS[@]}"; do
+            TOOL_NAME=$(basename "${tool%@*}")
+            echo "" >> "$INSTALL_LOG"
+            echo "--- Installing: $TOOL_NAME ---" >> "$INSTALL_LOG"
+            
+            if go install "$tool" 2>&1 | tee -a "$INSTALL_LOG"; then
+              echo "[PASS] $TOOL_NAME installed" | tee -a "$INSTALL_LOG"
+              INSTALLED=$((INSTALLED + 1))
+            else
+              echo "[FAIL] $TOOL_NAME failed" | tee -a "$INSTALL_LOG"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+          
+          echo ""
+          echo "========================================"
+          echo "GO TOOLS INSTALLATION SUMMARY"
+          echo "========================================"
+          echo "Installed: $INSTALLED"
+          echo "Failed: $FAILED"
+          
+          # Verify tools in path
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          
+          echo ""
+          echo "=== Verifying Installed Tools ==="
+          for tool in "${GO_TOOLS[@]}"; do
+            TOOL_NAME=$(basename "${tool%@*}")
+            if command -v "$TOOL_NAME" &>/dev/null; then
+              echo "[OK] $TOOL_NAME: $(command -v $TOOL_NAME)"
+            else
+              echo "[MISSING] $TOOL_NAME"
+            fi
+          done
+
+      - name: Install Python Tools (Sample)
+        run: |
+          echo "========================================"
+          echo "INSTALLING SAMPLE PYTHON TOOLS"
+          echo "========================================"
+          
+          INSTALL_LOG="logs/install/python_tools.log"
+          echo "Timestamp: $(date)" > "$INSTALL_LOG"
+          
+          # Upgrade pip
+          python3 -m pip install --upgrade pip
+          
+          # Install a selection of Python tools
+          PIP_TOOLS=(
+            "wafw00f"
+            "uro"
+          )
+          
+          for tool in "${PIP_TOOLS[@]}"; do
+            echo "" >> "$INSTALL_LOG"
+            echo "--- Installing: $tool ---" >> "$INSTALL_LOG"
+            
+            if python3 -m pip install --user "$tool" 2>&1 | tee -a "$INSTALL_LOG"; then
+              echo "[PASS] $tool installed" | tee -a "$INSTALL_LOG"
+            else
+              echo "[FAIL] $tool failed" | tee -a "$INSTALL_LOG"
+            fi
+          done
+
+      - name: Test Tool Integration
+        run: |
+          echo "========================================"
+          echo "TOOL INTEGRATION TEST"
+          echo "========================================"
+          
+          INTEGRATION_LOG="logs/install/integration.log"
+          echo "Timestamp: $(date)" > "$INTEGRATION_LOG"
+          
+          export PATH="$PATH:$(go env GOPATH)/bin:$HOME/.local/bin"
+          
+          # Test subfinder
+          echo "--- Testing subfinder ---" >> "$INTEGRATION_LOG"
+          if subfinder --version >> "$INTEGRATION_LOG" 2>&1; then
+            echo "[PASS] subfinder works" | tee -a "$INTEGRATION_LOG"
+          else
+            echo "[FAIL] subfinder error" | tee -a "$INTEGRATION_LOG"
+          fi
+          
+          # Test httpx
+          echo "" >> "$INTEGRATION_LOG"
+          echo "--- Testing httpx ---" >> "$INTEGRATION_LOG"
+          if httpx --version >> "$INTEGRATION_LOG" 2>&1; then
+            echo "[PASS] httpx works" | tee -a "$INTEGRATION_LOG"
+          else
+            echo "[FAIL] httpx error" | tee -a "$INTEGRATION_LOG"
+          fi
+          
+          # Test nuclei
+          echo "" >> "$INTEGRATION_LOG"
+          echo "--- Testing nuclei ---" >> "$INTEGRATION_LOG"
+          if nuclei --version >> "$INTEGRATION_LOG" 2>&1; then
+            echo "[PASS] nuclei works" | tee -a "$INTEGRATION_LOG"
+          else
+            echo "[FAIL] nuclei error" | tee -a "$INTEGRATION_LOG"
+          fi
+          
+          cat "$INTEGRATION_LOG"
+
+      - name: Upload Installation Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installation-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/install/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 9: API Key Validation
+  ################################################################################
+  api-validation:
+    name: "9. API Key Validation"
+    runs-on: ubuntu-latest
+    needs: [environment-info]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/api
+
+      - name: Validate API Keys
+        run: |
+          echo "========================================"
+          echo "API KEY VALIDATION"
+          echo "========================================"
+          
+          API_LOG="logs/api/api_validation.log"
+          echo "Timestamp: $(date)" > "$API_LOG"
+          
+          # Check which keys are configured
+          echo "" >> "$API_LOG"
+          echo "=== API Key Status ===" >> "$API_LOG"
+          
+          check_key() {
+            local name=$1
+            local value=$2
+            local test_url=$3
+            
+            if [[ -n "$value" ]] && [[ "$value" != "" ]]; then
+              echo "[CONFIGURED] $name (length: ${#value})" | tee -a "$API_LOG"
+              
+              # Try to validate if test URL provided
+              if [[ -n "$test_url" ]]; then
+                echo "  Testing connectivity..." >> "$API_LOG"
+              fi
+              
+              return 0
+            else
+              echo "[NOT SET] $name" | tee -a "$API_LOG"
+              return 1
+            fi
+          }
+          
+          # Check each key
+          check_key "CHAOS_API_KEY" "${{ secrets.CHAOS_API_KEY }}" ""
+          check_key "SECURITYTRAILS_API_KEY" "${{ secrets.SECURITYTRAILS_API_KEY }}" ""
+          check_key "SHODAN_API_KEY" "${{ secrets.SHODAN_API_KEY }}" ""
+          check_key "GITHUB_TOKEN" "${{ secrets.TOKEN }}" ""
+          check_key "VIRUSTOTAL_API_KEY" "${{ secrets.VIRUSTOTAL_API_KEY }}" ""
+          
+          echo "" >> "$API_LOG"
+          echo "=== API Connectivity Tests ===" >> "$API_LOG"
+          
+          # Test Shodan API
+          if [[ -n "${{ secrets.SHODAN_API_KEY }}" ]]; then
+            echo "" >> "$API_LOG"
+            echo "--- Testing Shodan API ---" >> "$API_LOG"
+            SHODAN_RESP=$(curl -s "https://api.shodan.io/api-info?key=${{ secrets.SHODAN_API_KEY }}" 2>&1)
+            
+            if echo "$SHODAN_RESP" | jq -e '.plan' &>/dev/null; then
+              PLAN=$(echo "$SHODAN_RESP" | jq -r '.plan')
+              echo "[PASS] Shodan API valid (Plan: $PLAN)" | tee -a "$API_LOG"
+            else
+              echo "[FAIL] Shodan API invalid or rate limited" | tee -a "$API_LOG"
+              echo "Response: $SHODAN_RESP" >> "$API_LOG"
+            fi
+          fi
+          
+          # Test VirusTotal API
+          if [[ -n "${{ secrets.VIRUSTOTAL_API_KEY }}" ]]; then
+            echo "" >> "$API_LOG"
+            echo "--- Testing VirusTotal API ---" >> "$API_LOG"
+            VT_RESP=$(curl -s -H "x-apikey: ${{ secrets.VIRUSTOTAL_API_KEY }}" "https://www.virustotal.com/api/v3/domains/example.com" 2>&1)
+            
+            if echo "$VT_RESP" | jq -e '.data' &>/dev/null; then
+              echo "[PASS] VirusTotal API valid" | tee -a "$API_LOG"
+            else
+              echo "[WARN] VirusTotal API may be invalid or rate limited" | tee -a "$API_LOG"
+            fi
+          fi
+          
+          # Test GitHub Token
+          if [[ -n "${{ secrets.TOKEN }}" ]]; then
+            echo "" >> "$API_LOG"
+            echo "--- Testing GitHub Token ---" >> "$API_LOG"
+            GH_RESP=$(curl -s -H "Authorization: token ${{ secrets.TOKEN }}" "https://api.github.com/user" 2>&1)
+            
+            if echo "$GH_RESP" | jq -e '.login' &>/dev/null; then
+              LOGIN=$(echo "$GH_RESP" | jq -r '.login')
+              echo "[PASS] GitHub Token valid (User: $LOGIN)" | tee -a "$API_LOG"
+            else
+              echo "[WARN] GitHub Token may be invalid" | tee -a "$API_LOG"
+            fi
+          fi
+          
+          cat "$API_LOG"
+
+      - name: Upload API Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-validation-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/api/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 10: Run Test Suite
+  ################################################################################
+  run-test-suite:
+    name: "10. Run Test Suite"
+    runs-on: ubuntu-latest
+    needs: [environment-info, module-tests]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Log Directory
+        run: mkdir -p logs/testsuite
+
+      - name: Run Neko Test Suite
+        run: |
+          echo "========================================"
+          echo "RUNNING NEKO TEST SUITE"
+          echo "========================================"
+          
+          chmod +x run_tests.sh
+          
+          # Run the test suite and capture output
+          ./run_tests.sh --no-cleanup 2>&1 | tee logs/testsuite/test_output.log || true
+          
+          # Copy generated logs
+          if [[ -d "test_logs" ]]; then
+            cp -r test_logs/* logs/testsuite/ 2>/dev/null || true
+          fi
+
+      - name: Upload Test Suite Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testsuite-logs-${{ needs.environment-info.outputs.run_id }}
+          path: logs/testsuite/
+          retention-days: 30
+
+  ################################################################################
+  # JOB 11: Final Summary
+  ################################################################################
+  final-summary:
+    name: "11. Final Summary"
+    runs-on: ubuntu-latest
+    needs: [
+      environment-info,
+      syntax-validation,
+      config-validation,
+      structure-validation,
+      library-tests,
+      module-tests,
+      main-script-tests,
+      api-validation,
+      run-test-suite
+    ]
+    if: always()
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-logs
+
+      - name: Generate Final Summary
+        run: |
+          echo "========================================"
+          echo "NEKO DEEP ERROR DETECTION - FINAL SUMMARY"
+          echo "========================================"
+          echo ""
+          echo "Run ID: ${{ needs.environment-info.outputs.run_id }}"
+          echo "Timestamp: $(date)"
+          echo ""
+          echo "========================================"
+          echo "JOB RESULTS"
+          echo "========================================"
+          echo ""
+          echo "1. Environment Info:      ${{ needs.environment-info.result }}"
+          echo "2. Syntax Validation:     ${{ needs.syntax-validation.result }}"
+          echo "3. Config Validation:     ${{ needs.config-validation.result }}"
+          echo "4. Structure Validation:  ${{ needs.structure-validation.result }}"
+          echo "5. Library Tests:         ${{ needs.library-tests.result }}"
+          echo "6. Module Tests:          ${{ needs.module-tests.result }}"
+          echo "7. Main Script Tests:     ${{ needs.main-script-tests.result }}"
+          echo "8. API Validation:        ${{ needs.api-validation.result }}"
+          echo "9. Test Suite:            ${{ needs.run-test-suite.result }}"
+          echo ""
+          
+          # Determine overall status
+          OVERALL="SUCCESS"
+          if [[ "${{ needs.syntax-validation.result }}" == "failure" ]]; then
+            OVERALL="FAILURE"
+            echo "[CRITICAL] Syntax validation failed!"
+          fi
+          if [[ "${{ needs.config-validation.result }}" == "failure" ]]; then
+            OVERALL="FAILURE"
+            echo "[CRITICAL] Configuration validation failed!"
+          fi
+          if [[ "${{ needs.structure-validation.result }}" == "failure" ]]; then
+            OVERALL="FAILURE"
+            echo "[CRITICAL] Structure validation failed!"
+          fi
+          if [[ "${{ needs.library-tests.result }}" == "failure" ]]; then
+            OVERALL="FAILURE"
+            echo "[CRITICAL] Library tests failed!"
+          fi
+          if [[ "${{ needs.module-tests.result }}" == "failure" ]]; then
+            OVERALL="FAILURE"
+            echo "[CRITICAL] Module tests failed!"
+          fi
+          
+          echo ""
+          echo "========================================"
+          echo "OVERALL STATUS: $OVERALL"
+          echo "========================================"
+          echo ""
+          echo "All logs have been uploaded as artifacts."
+          echo "Download them from the Actions page for detailed analysis."
+          echo ""
+          
+          # List available logs
+          echo "=== Available Log Artifacts ==="
+          ls -la all-logs/ 2>/dev/null || echo "No artifacts found"
+          
+          # Create summary file
+          cat > final-summary.txt << EOF
+          ═══════════════════════════════════════════════════════════════
+          NEKO DEEP ERROR DETECTION SUMMARY
+          ═══════════════════════════════════════════════════════════════
+          
+          Run ID: ${{ needs.environment-info.outputs.run_id }}
+          Date: $(date)
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          
+          ═══════════════════════════════════════════════════════════════
+          RESULTS
+          ═══════════════════════════════════════════════════════════════
+          
+          Syntax Validation:     ${{ needs.syntax-validation.result }}
+          Config Validation:     ${{ needs.config-validation.result }}
+          Structure Validation:  ${{ needs.structure-validation.result }}
+          Library Tests:         ${{ needs.library-tests.result }}
+          Module Tests:          ${{ needs.module-tests.result }}
+          Main Script Tests:     ${{ needs.main-script-tests.result }}
+          API Validation:        ${{ needs.api-validation.result }}
+          Test Suite:            ${{ needs.run-test-suite.result }}
+          
+          ═══════════════════════════════════════════════════════════════
+          OVERALL: $OVERALL
+          ═══════════════════════════════════════════════════════════════
+          
+          Download all artifacts for detailed logs and error information.
+          EOF
+          
+          cat final-summary.txt
+
+      - name: Upload Final Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-summary-${{ needs.environment-info.outputs.run_id }}
+          path: final-summary.txt
+          retention-days: 30
+
+      - name: Set Exit Status
+        if: |
+          needs.syntax-validation.result == 'failure' ||
+          needs.config-validation.result == 'failure' ||
+          needs.structure-validation.result == 'failure' ||
+          needs.library-tests.result == 'failure' ||
+          needs.module-tests.result == 'failure'
+        run: |
+          echo "Critical tests failed. Please check the logs for details."
+          exit 1
+
