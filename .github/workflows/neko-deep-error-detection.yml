@@ -47,9 +47,9 @@ env:
   GITHUB_TOKEN: ${{ secrets.TOKEN }}
   VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
   
-  # Go configuration
-  GOPATH: /home/runner/go
-  GOROOT: /usr/local/go
+  # Go configuration - GOROOT and GOPATH are set automatically by actions/setup-go
+  # Do NOT hardcode GOROOT as it varies depending on the Go version and setup method
+  # GOPATH will default to $HOME/go if not set
   
   # Paths
   TOOLS_PATH: /home/runner/Tools
@@ -1222,8 +1222,9 @@ jobs:
           echo "========================================"
           
           go version
-          echo "GOPATH: $GOPATH"
-          echo "GOROOT: $GOROOT"
+          # Use 'go env' to get the actual paths set by actions/setup-go
+          echo "GOPATH: $(go env GOPATH)"
+          echo "GOROOT: $(go env GOROOT)"
           
           # Add Go bin to path
           export PATH="$PATH:$(go env GOPATH)/bin"
