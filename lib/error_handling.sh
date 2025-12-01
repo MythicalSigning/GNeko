@@ -26,8 +26,9 @@ declare -gA CIRCUIT_LAST_FAILURE
 # INITIALIZATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# shellcheck disable=SC2154 # dir is set in main script
 error_init() {
-    ERROR_LOG="${dir}/logs/errors.log"
+    ERROR_LOG="${dir:-/tmp/neko}/logs/errors.log"
     ensure_dir "$(dirname "$ERROR_LOG")"
     
     # Initialize fallback tool mappings
@@ -66,7 +67,8 @@ retry_with_backoff() {
     local max_delay="${3:-60}"
     local exponential="${4:-2}"
     shift 4
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     local retries=0
     local delay=$initial_delay
@@ -101,7 +103,8 @@ retry_simple() {
     local max_retries="${1:-3}"
     local delay="${2:-5}"
     shift 2
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     local retries=0
     
@@ -123,7 +126,8 @@ retry_with_timeout() {
     local timeout="${2:-300}"
     local delay="${3:-5}"
     shift 3
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     local retries=0
     
@@ -213,7 +217,8 @@ get_fallback_tools() {
 execute_with_fallback() {
     local primary_tool="$1"
     shift
-    local args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local args="$*"
     
     # Check circuit breaker
     if ! circuit_check "$primary_tool"; then
@@ -318,7 +323,8 @@ get_tool_errors() {
 safe_run() {
     local tool="$1"
     shift
-    local args="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local args="$*"
     local max_retries="${SAFE_RUN_RETRIES:-3}"
     local timeout="${SAFE_RUN_TIMEOUT:-600}"
     
@@ -368,7 +374,8 @@ safe_run() {
 run_graceful() {
     local description="$1"
     shift
-    local cmd="$@"
+    # shellcheck disable=SC2124 # intentional: capture remaining args as string
+    local cmd="$*"
     
     log_debug "Running: $description"
     

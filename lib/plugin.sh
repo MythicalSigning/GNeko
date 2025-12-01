@@ -348,13 +348,15 @@ plugin_uninstall() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Called before scan starts
+# shellcheck disable=SC2154 # domain and mode are set in main script
 trigger_pre_scan() {
-    plugin_run_hooks "$HOOK_PRE_SCAN" "$domain" "$mode"
+    plugin_run_hooks "$HOOK_PRE_SCAN" "${domain:-}" "${mode:-}"
 }
 
 # Called after scan completes
+# shellcheck disable=SC2154 # domain and dir are set in main script
 trigger_post_scan() {
-    plugin_run_hooks "$HOOK_POST_SCAN" "$domain" "$dir"
+    plugin_run_hooks "$HOOK_POST_SCAN" "${domain:-}" "${dir:-}"
 }
 
 # Called before each phase
