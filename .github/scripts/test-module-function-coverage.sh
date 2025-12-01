@@ -140,7 +140,7 @@ test_parameter_handling() {
     printf '%s\n' "=== PARAMETER HANDLING TESTS ===" > "$PARAM_LOG"
     printf 'Timestamp: %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$PARAM_LOG"
 
-    printf '--- validate_domain ---\n' >> "$PARAM_LOG"
+    printf -- '--- validate_domain ---\n' >> "$PARAM_LOG"
     if type -t validate_domain &>/dev/null; then
         local tests=(
             "example.com:0"
@@ -174,7 +174,7 @@ test_parameter_handling() {
         printf '[SKIP] validate_domain not defined\n' >> "$PARAM_LOG"
     fi
 
-    printf '\n--- count_lines ---\n' >> "$PARAM_LOG"
+    printf -- '\n--- count_lines ---\n' >> "$PARAM_LOG"
     if type -t count_lines &>/dev/null; then
         printf 'line1\nline2\nline3\n' > /tmp/test_param_$$
 
@@ -195,7 +195,7 @@ test_parameter_handling() {
         printf '[SKIP] count_lines not defined\n' >> "$PARAM_LOG"
     fi
 
-    printf '\n--- is_ip ---\n' >> "$PARAM_LOG"
+    printf -- '\n--- is_ip ---\n' >> "$PARAM_LOG"
     if type -t is_ip &>/dev/null; then
         local ip_tests=(
             "192.168.1.1:0"
@@ -236,7 +236,7 @@ test_edge_cases() {
     printf '%s\n' "=== EDGE CASE TESTS ===" > "$EDGE_LOG"
     printf 'Timestamp: %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$EDGE_LOG"
 
-    printf '--- Empty input handling ---\n' >> "$EDGE_LOG"
+    printf -- '--- Empty input handling ---\n' >> "$EDGE_LOG"
 
     if type -t validate_domain &>/dev/null; then
         if ! validate_domain "" 2>/dev/null; then
@@ -252,7 +252,7 @@ test_edge_cases() {
         printf '[INFO] count_lines("") = %s\n' "$result" >> "$EDGE_LOG"
     fi
 
-    printf '\n--- Special character handling ---\n' >> "$EDGE_LOG"
+    printf -- '\n--- Special character handling ---\n' >> "$EDGE_LOG"
 
     local special_inputs=(
         "test\`command\`"
@@ -272,7 +272,7 @@ test_edge_cases() {
         fi
     done
 
-    printf '\n--- Large input handling ---\n' >> "$EDGE_LOG"
+    printf -- '\n--- Large input handling ---\n' >> "$EDGE_LOG"
 
     local large_input
     large_input=$(printf 'a%.0s' {1..1000})
@@ -294,7 +294,7 @@ test_return_codes() {
     printf '%s\n' "=== RETURN CODE TESTS ===" > "$RETURN_LOG"
     printf 'Timestamp: %s\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$RETURN_LOG"
 
-    printf '--- command_exists ---\n' >> "$RETURN_LOG"
+    printf -- '--- command_exists ---\n' >> "$RETURN_LOG"
     if type -t command_exists &>/dev/null; then
         command_exists bash
         local rc=$?
@@ -307,7 +307,7 @@ test_return_codes() {
         printf '[SKIP] command_exists not defined\n' >> "$RETURN_LOG"
     fi
 
-    printf '\n--- is_ip ---\n' >> "$RETURN_LOG"
+    printf -- '\n--- is_ip ---\n' >> "$RETURN_LOG"
     if type -t is_ip &>/dev/null; then
         is_ip "192.168.1.1"
         local rc=$?
@@ -320,7 +320,7 @@ test_return_codes() {
         printf '[SKIP] is_ip not defined\n' >> "$RETURN_LOG"
     fi
 
-    printf '\n--- is_cidr ---\n' >> "$RETURN_LOG"
+    printf -- '\n--- is_cidr ---\n' >> "$RETURN_LOG"
     if type -t is_cidr &>/dev/null; then
         is_cidr "10.0.0.0/24"
         local rc=$?
