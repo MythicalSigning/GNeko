@@ -108,11 +108,11 @@ jobs:
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           RUN_ID="neko_test_${TIMESTAMP}_${{ github.run_number }}"
           ARTIFACT_PREFIX="neko-test-${TIMESTAMP}"
-          
+
           printf 'timestamp=%s\n' "$TIMESTAMP" >> "$GITHUB_OUTPUT"
           printf 'run_id=%s\n' "$RUN_ID" >> "$GITHUB_OUTPUT"
           printf 'artifact_prefix=%s\n' "$ARTIFACT_PREFIX" >> "$GITHUB_OUTPUT"
-          
+
           printf '%s\n' "╔══════════════════════════════════════════════════════════════╗"
           printf '%s\n' "║     NEKO COMPREHENSIVE TESTING SUITE                         ║"
           printf '%s\n' "╠══════════════════════════════════════════════════════════════╣"
@@ -165,9 +165,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/integration/phase_transitions.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Phase Transition Logic ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export domain="test.example.com"
@@ -175,14 +175,14 @@ jobs:
           export dir="/tmp/neko_test_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
-          
+
           mkdir -p "$dir"/{logs,subdomains,dns,hosts,webs,ports,.tmp,.called}
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || printf '[WARN] Failed to load: %s\n' "$lib"
           done
-          
+
           PHASES=(
             "00_osint:osint_main"
             "01_subdomain:subdomain_main"
@@ -191,17 +191,17 @@ jobs:
             "04_portscan:portscan_main"
             "05_content:content_main"
           )
-          
+
           for phase_info in "${PHASES[@]}"; do
             module="${phase_info%%:*}"
             main_func="${phase_info##*:}"
-            
+
             printf '\n--- Testing phase: %s ---\n' "$module"
-            
+
             if [[ -f "modules/${module}.sh" ]]; then
               if source "modules/${module}.sh" 2>/dev/null; then
                 printf '[PASS] Module loaded: %s\n' "$module"
-                
+
                 if type -t "$main_func" &>/dev/null; then
                   printf '[PASS] Main function available: %s\n' "$main_func"
                 else
@@ -214,7 +214,7 @@ jobs:
               printf '[SKIP] Module not found: modules/%s.sh\n' "$module"
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
           printf '\n[COMPLETE] Phase transition testing finished\n'
 
@@ -222,39 +222,39 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/integration/data_flow.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Inter-Module Data Flow ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_dataflow_$$"
-          
+
           mkdir -p "$dir"/{subdomains,dns,hosts,webs,ports,urls}
-          
+
           printf '%s\n' "sub1.example.com" > "$dir/subdomains/subdomains.txt"
           printf '%s\n' "sub2.example.com" >> "$dir/subdomains/subdomains.txt"
           printf '%s\n' "sub3.example.com" >> "$dir/subdomains/subdomains.txt"
-          
+
           SUBDOMAIN_COUNT=$(wc -l < "$dir/subdomains/subdomains.txt")
           printf '[TEST] Created %d test subdomains\n' "$SUBDOMAIN_COUNT"
-          
+
           printf '%s\n' "sub1.example.com:192.168.1.1" > "$dir/dns/resolved.txt"
           printf '%s\n' "sub2.example.com:192.168.1.2" >> "$dir/dns/resolved.txt"
-          
+
           printf '%s\n' "https://sub1.example.com" > "$dir/webs/webs.txt"
           printf '%s\n' "http://sub2.example.com" >> "$dir/webs/webs.txt"
-          
+
           if [[ -f "$dir/subdomains/subdomains.txt" ]] && [[ -f "$dir/dns/resolved.txt" ]]; then
             printf '[PASS] Data flow from subdomains to DNS working\n'
           else
             printf '[FAIL] Data flow issue detected\n'
           fi
-          
+
           if [[ -f "$dir/webs/webs.txt" ]]; then
             WEB_COUNT=$(wc -l < "$dir/webs/webs.txt")
             printf '[PASS] Web probing data available: %d hosts\n' "$WEB_COUNT"
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
           printf '\n[COMPLETE] Data flow testing finished\n'
 
@@ -262,23 +262,23 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/integration/output_files.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Output File Structure ==="
-          
+
           export dir="/tmp/neko_output_$$"
-          
+
           EXPECTED_DIRS=(
             "logs" "osint" "subdomains" "dns" "hosts" "webs" "ports"
             "content" "technologies" "urls" "js" "parameters"
             "vulnerabilities" "xss" "takeover" "cloud" "auth" "api"
             "reports" ".tmp"
           )
-          
+
           mkdir -p "$dir"
           for subdir in "${EXPECTED_DIRS[@]}"; do
             mkdir -p "$dir/$subdir"
           done
-          
+
           for subdir in "${EXPECTED_DIRS[@]}"; do
             if [[ -d "$dir/$subdir" ]]; then
               printf '[PASS] Directory created: %s\n' "$subdir"
@@ -286,7 +286,7 @@ jobs:
               printf '[FAIL] Directory missing: %s\n' "$subdir"
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
           printf '\n[COMPLETE] Output file structure testing finished\n'
 
@@ -294,22 +294,22 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/integration/cleanup_state.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Cleanup and State Management ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           export dir="/tmp/neko_state_$$"
           export called_fn_dir="${dir}/.called"
           mkdir -p "$called_fn_dir"
-          
+
           touch "$called_fn_dir/.osint_completed"
           touch "$called_fn_dir/.subdomain_completed"
           touch "$called_fn_dir/.dns_completed"
-          
+
           for marker in osint subdomain dns; do
             if [[ -f "$called_fn_dir/.${marker}_completed" ]]; then
               printf '[PASS] State marker exists: %s\n' "$marker"
@@ -317,15 +317,15 @@ jobs:
               printf '[FAIL] State marker missing: %s\n' "$marker"
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
-          
+
           if [[ ! -d "$dir" ]]; then
             printf '[PASS] Cleanup successful\n'
           else
             printf '[FAIL] Cleanup failed\n'
           fi
-          
+
           printf '\n[COMPLETE] Cleanup and state testing finished\n'
 
       - name: Upload Integration Test Logs
@@ -355,9 +355,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/library-deps/loading_order.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Library Loading Order ==="
-          
+
           CORRECT_ORDER=(
             "core.sh"
             "logging.sh"
@@ -373,7 +373,7 @@ jobs:
             "plugin.sh"
             "discord_notifications.sh"
           )
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export domain="test.example.com"
@@ -382,17 +382,17 @@ jobs:
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
           export TOOLS_PATH="${TOOLS_PATH:-/tmp/Tools}"
-          
+
           mkdir -p "$dir"/{logs,.called,.tmp}
           mkdir -p "$TOOLS_PATH"
           touch "$LOGFILE"
-          
+
           LOAD_SUCCESS=0
           LOAD_FAIL=0
-          
+
           for lib in "${CORRECT_ORDER[@]}"; do
             printf '\n--- Loading: %s ---\n' "$lib"
-            
+
             if [[ -f "lib/$lib" ]]; then
               if source "lib/$lib" 2>&1; then
                 printf '[PASS] Loaded: %s\n' "$lib"
@@ -405,37 +405,37 @@ jobs:
               printf '[SKIP] Not found: %s\n' "$lib"
             fi
           done
-          
+
           printf '\n=== Loading Summary ===\n'
           printf 'Successful: %d\n' "$LOAD_SUCCESS"
           printf 'Failed: %d\n' "$LOAD_FAIL"
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Inter-Library Function Calls
         run: |
           set -euo pipefail
           exec > >(tee logs/library-deps/inter_library.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Inter-Library Function Calls ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_interlib_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
           export TOOLS_PATH="${TOOLS_PATH:-/tmp/Tools}"
-          
+
           mkdir -p "$dir"/{logs,.called}
           mkdir -p "$TOOLS_PATH"
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           CORE_FUNCS=("command_exists" "ensure_dir" "timestamp" "validate_domain" "is_ip" "count_lines")
-          
+
           printf '\n--- Core Functions ---\n'
           for func in "${CORE_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
@@ -444,9 +444,9 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           LOGGING_FUNCS=("log_info" "log_error" "log_warning" "log_success" "log_debug")
-          
+
           printf '\n--- Logging Functions ---\n'
           for func in "${LOGGING_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
@@ -455,25 +455,25 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Circular Dependency Detection
         run: |
           set -euo pipefail
           exec > >(tee logs/library-deps/circular_deps.log) 2>&1
-          
+
           printf '%s\n' "=== Checking for Circular Dependencies ==="
-          
+
           for lib in lib/*.sh; do
             libname=$(basename "$lib")
             printf '\n--- Checking: %s ---\n' "$libname"
-            
+
             SOURCES=$(grep -E "^\s*(source|\.)\s+" "$lib" 2>/dev/null | grep -v "^#" || true)
-            
+
             if [[ -n "$SOURCES" ]]; then
               printf 'Source statements found:\n%s\n' "$SOURCES"
-              
+
               if echo "$SOURCES" | grep -q "$libname"; then
                 printf '[WARN] Potential self-reference detected\n'
               else
@@ -488,21 +488,21 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/library-deps/isolation.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Library Isolation ==="
-          
+
           for lib in lib/*.sh; do
             libname=$(basename "$lib" .sh)
             printf '\n--- Testing isolation: %s ---\n' "$libname"
-            
+
             GLOBAL_VARS=$(grep -E "^[A-Z_]+=" "$lib" 2>/dev/null | head -10 || true)
-            
+
             if [[ -n "$GLOBAL_VARS" ]]; then
               printf 'Global variables defined:\n%s\n' "$GLOBAL_VARS"
             else
               printf '[OK] No direct global variable definitions\n'
             fi
-            
+
             DECLARED_GLOBALS=$(grep -E "^declare\s+-g" "$lib" 2>/dev/null | head -5 || true)
             if [[ -n "$DECLARED_GLOBALS" ]]; then
               printf 'Declared globals:\n%s\n' "$DECLARED_GLOBALS"
@@ -536,14 +536,14 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x .github/scripts/test-module-function-coverage.sh 2>/dev/null || true
-          
+
           if [[ -f .github/scripts/test-module-function-coverage.sh ]]; then
             ./.github/scripts/test-module-function-coverage.sh
           else
             exec > >(tee logs/module-coverage/function_coverage.log) 2>&1
-            
+
             printf '%s\n' "=== Module Function Coverage Testing ==="
-            
+
             source neko.cfg 2>/dev/null || true
             export SCRIPTPATH="$(pwd)"
             export domain="test.example.com"
@@ -552,31 +552,31 @@ jobs:
             export called_fn_dir="${dir}/.called"
             export LOGFILE="${dir}/test.log"
             export TOOLS_PATH="${TOOLS_PATH:-/tmp/Tools}"
-            
+
             mkdir -p "$dir"/{logs,osint,subdomains,dns,hosts,webs,ports,content,technologies,urls,js,parameters,vulnerabilities,xss,takeover,cloud,auth,api,reports,.tmp,.called}
             mkdir -p "$TOOLS_PATH"
             touch "$LOGFILE"
-            
+
             for lib in lib/*.sh; do
               source "$lib" 2>/dev/null || true
             done
-            
+
             TOTAL_FUNCS=0
             DEFINED_FUNCS=0
-            
+
             for module in modules/*.sh; do
               modname=$(basename "$module" .sh)
               printf '\n═══ Module: %s ═══\n' "$modname"
-              
+
               if source "$module" 2>/dev/null; then
                 printf '[LOADED] Module sourced successfully\n'
-                
+
                 FUNCS=$(grep -E "^[a-z_]+\(\)\s*\{" "$module" 2>/dev/null | sed 's/().*//' || true)
-                
+
                 if [[ -n "$FUNCS" ]]; then
                   while IFS= read -r func; do
                     ((TOTAL_FUNCS++)) || true
-                    
+
                     if type -t "$func" &>/dev/null; then
                       printf '  [OK] %s\n' "$func"
                       ((DEFINED_FUNCS++)) || true
@@ -589,11 +589,11 @@ jobs:
                 printf '[FAIL] Could not load module\n'
               fi
             done
-            
+
             printf '\n═══ Summary ═══\n'
             printf 'Total functions found: %d\n' "$TOTAL_FUNCS"
             printf 'Functions defined: %d\n' "$DEFINED_FUNCS"
-            
+
             rm -rf "$dir" 2>/dev/null || true
           fi
 
@@ -601,22 +601,22 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/module-coverage/parameter_handling.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Function Parameter Handling ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_params_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
-          
+
           mkdir -p "$dir"/{logs,.called}
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing validate_domain ---\n'
           if type -t validate_domain &>/dev/null; then
             DOMAIN_TESTS=(
@@ -628,17 +628,17 @@ jobs:
               ":invalid"
               "..com:invalid"
             )
-            
+
             for test in "${DOMAIN_TESTS[@]}"; do
               domain_input="${test%%:*}"
               expected="${test##*:}"
-              
+
               if validate_domain "$domain_input" 2>/dev/null; then
                 result="valid"
               else
                 result="invalid"
               fi
-              
+
               if [[ "$result" == "$expected" ]]; then
                 printf '[PASS] validate_domain("%s") = %s\n' "$domain_input" "$result"
               else
@@ -646,37 +646,37 @@ jobs:
               fi
             done
           fi
-          
+
           printf '\n--- Testing count_lines ---\n'
           if type -t count_lines &>/dev/null; then
             printf 'line1\nline2\nline3\n' > /tmp/test_count_$$
             count=$(count_lines /tmp/test_count_$$)
             rm -f /tmp/test_count_$$
-            
+
             if [[ "$count" == "3" ]]; then
               printf '[PASS] count_lines returned: %s\n' "$count"
             else
               printf '[FAIL] count_lines returned: %s (expected: 3)\n' "$count"
             fi
-            
+
             empty_count=$(count_lines /tmp/nonexistent_file_$$ 2>/dev/null || echo "0")
             printf '[INFO] count_lines on nonexistent file: %s\n' "$empty_count"
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Return Codes and Error Handling
         run: |
           set -euo pipefail
           exec > >(tee logs/module-coverage/return_codes.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Return Codes and Error Handling ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing command_exists return codes ---\n'
           if type -t command_exists &>/dev/null; then
             if command_exists bash; then
@@ -684,14 +684,14 @@ jobs:
             else
               printf '[FAIL] command_exists bash should return 0\n'
             fi
-            
+
             if ! command_exists nonexistent_cmd_xyz_123; then
               printf '[PASS] command_exists nonexistent returns non-zero\n'
             else
               printf '[FAIL] command_exists nonexistent should return non-zero\n'
             fi
           fi
-          
+
           printf '\n--- Testing is_ip return codes ---\n'
           if type -t is_ip &>/dev/null; then
             if is_ip "192.168.1.1"; then
@@ -699,7 +699,7 @@ jobs:
             else
               printf '[FAIL] is_ip("192.168.1.1") should return 0\n'
             fi
-            
+
             if ! is_ip "example.com"; then
               printf '[PASS] is_ip("example.com") returns non-zero\n'
             else
@@ -734,26 +734,26 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/config-validation/all_options.log) 2>&1
-          
+
           printf '%s\n' "=== Testing All Configuration Options ==="
-          
+
           CONFIG_FILE="neko.cfg"
-          
+
           if [[ ! -f "$CONFIG_FILE" ]]; then
             printf '[FAIL] Configuration file not found: %s\n' "$CONFIG_FILE"
             exit 1
           fi
-          
+
           printf '\n--- Configuration File Stats ---\n'
           printf 'File: %s\n' "$CONFIG_FILE"
           printf 'Size: %s bytes\n' "$(wc -c < "$CONFIG_FILE")"
           printf 'Lines: %s\n' "$(wc -l < "$CONFIG_FILE")"
-          
+
           VAR_COUNT=$(grep -cE '^\s*[A-Z_]+=' "$CONFIG_FILE" 2>/dev/null || echo 0)
           printf 'Variables: %d\n' "$VAR_COUNT"
-          
+
           source "$CONFIG_FILE"
-          
+
           printf '\n--- Phase Toggle Variables ---\n'
           PHASE_TOGGLES=(
             "OSINT_ENABLED"
@@ -773,7 +773,7 @@ jobs:
             "API_ENABLED"
             "REPORT_ENABLED"
           )
-          
+
           for var in "${PHASE_TOGGLES[@]}"; do
             if [[ -n "${!var+x}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -781,7 +781,7 @@ jobs:
               printf '[UNSET] %s\n' "$var"
             fi
           done
-          
+
           printf '\n--- Threading Variables ---\n'
           THREAD_VARS=(
             "SUBFINDER_THREADS"
@@ -790,7 +790,7 @@ jobs:
             "FFUF_THREADS"
             "NMAP_THREADS"
           )
-          
+
           for var in "${THREAD_VARS[@]}"; do
             if [[ -n "${!var+x}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -803,26 +803,26 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/config-validation/env_handling.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Environment Variable Handling ==="
-          
+
           export TEST_OVERRIDE_VAR="test_value_123"
-          
+
           source neko.cfg
-          
+
           printf '\n--- Testing variable presence ---\n'
           if [[ -n "${TOOLS_PATH:-}" ]]; then
             printf '[OK] TOOLS_PATH is set: %s\n' "$TOOLS_PATH"
           else
             printf '[WARN] TOOLS_PATH is not set\n'
           fi
-          
+
           if [[ -n "${USER_AGENT:-}" ]]; then
             printf '[OK] USER_AGENT is set\n'
           else
             printf '[WARN] USER_AGENT is not set\n'
           fi
-          
+
           printf '\n--- Testing path expansion ---\n'
           if [[ "${TOOLS_PATH:-}" == *"$HOME"* ]] || [[ "${TOOLS_PATH:-}" == *"~"* ]] || [[ "${TOOLS_PATH:-}" == /home/* ]] || [[ "${TOOLS_PATH:-}" == /tmp/* ]]; then
             printf '[OK] TOOLS_PATH contains path reference\n'
@@ -834,9 +834,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/config-validation/edge_cases.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Config Parsing Edge Cases ==="
-          
+
           printf '\n--- Checking for empty values ---\n'
           EMPTY_VARS=$(grep -E '^\s*[A-Z_]+=""' neko.cfg 2>/dev/null | head -20 || true)
           if [[ -n "$EMPTY_VARS" ]]; then
@@ -844,15 +844,15 @@ jobs:
           else
             printf '[OK] No empty quoted values found\n'
           fi
-          
+
           printf '\n--- Checking for commented variables ---\n'
           COMMENTED=$(grep -E '^\s*#\s*[A-Z_]+=' neko.cfg 2>/dev/null | head -10 || true)
           if [[ -n "$COMMENTED" ]]; then
             printf 'Commented variables (examples):\n%s\n' "$COMMENTED"
           fi
-          
+
           printf '\n--- Checking for special characters ---\n'
-          SPECIAL_CHARS=$(grep -E '^\s*[A-Z_]+=.*[&|;`$]' neko.cfg 2>/dev/null | grep -v "^\s*#" | head -10 || true)
+          SPECIAL_CHARS=$(grep -E '^\s*[A-Z_]+=.*[&|;`$]' neko.cfg 2>/dev/null | grep -v "^\s#" | head -10 || true)
           if [[ -n "$SPECIAL_CHARS" ]]; then
             printf 'Variables with special characters:\n%s\n' "$SPECIAL_CHARS"
           else
@@ -863,27 +863,27 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/config-validation/default_fallbacks.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Default Value Fallbacks ==="
-          
+
           printf '\n--- Testing unset variable fallbacks ---\n'
-          
+
           unset UNDEFINED_VAR 2>/dev/null || true
-          
+
           RESULT="${UNDEFINED_VAR:-default_value}"
           if [[ "$RESULT" == "default_value" ]]; then
             printf '[PASS] Fallback for unset variable works\n'
           else
             printf '[FAIL] Fallback returned: %s\n' "$RESULT"
           fi
-          
+
           source neko.cfg
-          
+
           printf '\n--- Testing config fallbacks ---\n'
-          
+
           DEBUG_VALUE="${DEBUG:-false}"
           printf 'DEBUG fallback: %s\n' "$DEBUG_VALUE"
-          
+
           PROXY_VALUE="${PROXY_URL:-none}"
           printf 'PROXY_URL fallback: %s\n' "$PROXY_VALUE"
 
@@ -914,14 +914,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/tool-mock/missing_tools.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Missing Tool Fallbacks ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           TOOLS_TO_CHECK=(
             "subfinder"
             "amass"
@@ -939,10 +939,10 @@ jobs:
             "sqlmap"
             "gobuster"
           )
-          
+
           AVAILABLE=0
           MISSING=0
-          
+
           for tool in "${TOOLS_TO_CHECK[@]}"; do
             if type -t command_exists &>/dev/null; then
               if command_exists "$tool"; then
@@ -962,7 +962,7 @@ jobs:
               fi
             fi
           done
-          
+
           printf '\n=== Summary ===\n'
           printf 'Available: %d\n' "$AVAILABLE"
           printf 'Missing: %d\n' "$MISSING"
@@ -971,48 +971,48 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/tool-mock/graceful_degradation.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Graceful Degradation ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export domain="test.example.com"
           export dir="/tmp/neko_degrade_$$"
           export called_fn_dir="${dir}/.called"
-          
+
           mkdir -p "$dir"/{logs,.called}
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing with_rate_limit fallback ---\n'
           if type -t with_rate_limit &>/dev/null; then
             with_rate_limit echo "test" 2>/dev/null && printf '[PASS] with_rate_limit works\n' || printf '[INFO] with_rate_limit returned non-zero\n'
           else
             printf '[SKIP] with_rate_limit not defined\n'
           fi
-          
+
           printf '\n--- Testing run_managed fallback ---\n'
           if type -t run_managed &>/dev/null; then
             printf '[AVAILABLE] run_managed function exists\n'
           else
             printf '[SKIP] run_managed not defined\n'
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Tool Version Compatibility
         run: |
           set -euo pipefail
           exec > >(tee logs/tool-mock/version_compat.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Tool Version Compatibility ==="
-          
+
           check_version() {
             local tool="$1"
             local version_cmd="${2:---version}"
-            
+
             if command -v "$tool" &>/dev/null; then
               local version
               version=$("$tool" $version_cmd 2>/dev/null | head -1 || echo "unknown")
@@ -1021,7 +1021,7 @@ jobs:
               printf '[MISSING] %s\n' "$tool"
             fi
           }
-          
+
           printf '\n--- System Tools ---\n'
           check_version bash "--version"
           check_version curl "--version"
@@ -1030,7 +1030,7 @@ jobs:
           check_version jq "--version"
           check_version python3 "--version"
           check_version go "version"
-          
+
           printf '\n--- Network Tools ---\n'
           check_version nmap "--version"
           check_version nc "-h" 2>/dev/null || check_version nc "--version"
@@ -1064,22 +1064,22 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/error-handling/error_paths.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Error Handling Paths ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_error_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
-          
+
           mkdir -p "$dir"/{logs,.called}
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing log_error function ---\n'
           if type -t log_error &>/dev/null; then
             log_error "Test error message" 2>/dev/null
@@ -1087,7 +1087,7 @@ jobs:
           else
             printf '[SKIP] log_error not defined\n'
           fi
-          
+
           printf '\n--- Testing mark_module_failed ---\n'
           if type -t mark_module_failed &>/dev/null; then
             mark_module_failed "test_module" "Test failure reason" 2>/dev/null
@@ -1095,25 +1095,25 @@ jobs:
           else
             printf '[SKIP] mark_module_failed not defined\n'
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Error Logging Mechanisms
         run: |
           set -euo pipefail
           exec > >(tee logs/error-handling/logging_mechanisms.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Error Logging Mechanisms ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing all log levels ---\n'
-          
+
           LOG_FUNCS=("log_info" "log_success" "log_warning" "log_error" "log_debug")
-          
+
           for func in "${LOG_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               $func "Test message from $func" 2>/dev/null || true
@@ -1127,25 +1127,25 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/error-handling/cleanup_after_error.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Cleanup After Errors ==="
-          
+
           TEST_DIR="/tmp/neko_cleanup_test_$$"
           mkdir -p "$TEST_DIR"
           touch "$TEST_DIR/test_file.txt"
-          
+
           printf 'Created test directory: %s\n' "$TEST_DIR"
-          
+
           cleanup_test() {
             rm -rf "$TEST_DIR" 2>/dev/null || true
           }
-          
+
           trap cleanup_test EXIT
-          
+
           (
             exit 1
           ) || true
-          
+
           if [[ ! -d "$TEST_DIR" ]] || cleanup_test; then
             printf '[PASS] Cleanup mechanism works\n'
           fi
@@ -1154,9 +1154,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/error-handling/signal_handling.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Signal Handling ==="
-          
+
           printf '\n--- Checking trap definitions in neko.sh ---\n'
           TRAPS=$(grep -E "^\s*trap\s+" neko.sh 2>/dev/null | head -10 || true)
           if [[ -n "$TRAPS" ]]; then
@@ -1164,14 +1164,14 @@ jobs:
           else
             printf '[INFO] No explicit trap definitions in main script\n'
           fi
-          
+
           printf '\n--- Checking cleanup function ---\n'
           if grep -q "cleanup()" neko.sh 2>/dev/null; then
             printf '[OK] cleanup() function defined in neko.sh\n'
           else
             printf '[INFO] No cleanup() function in neko.sh\n'
           fi
-          
+
           printf '\n--- Testing trap behavior ---\n'
           (
             trap 'printf "[TRAP] Caught signal\n"' INT TERM
@@ -1205,16 +1205,16 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/parallel/queue_management.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Queue Management System ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Queue Functions ---\n'
           QUEUE_FUNCS=(
             "queue_init"
@@ -1224,7 +1224,7 @@ jobs:
             "wait_for_slot"
             "release_slot"
           )
-          
+
           for func in "${QUEUE_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1237,11 +1237,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/parallel/rate_limiting.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Rate Limiting ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Rate Limit Variables ---\n'
           RATE_VARS=(
             "HTTPX_RATELIMIT"
@@ -1250,7 +1250,7 @@ jobs:
             "MASSCAN_RATE"
             "NMAP_RATE"
           )
-          
+
           for var in "${RATE_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1258,18 +1258,18 @@ jobs:
               printf '[UNSET] %s\n' "$var"
             fi
           done
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Rate Limit Functions ---\n'
           if type -t get_rate_limit &>/dev/null; then
             printf '[AVAILABLE] get_rate_limit\n'
           else
             printf '[MISSING] get_rate_limit\n'
           fi
-          
+
           if type -t with_rate_limit &>/dev/null; then
             printf '[AVAILABLE] with_rate_limit\n'
           else
@@ -1280,14 +1280,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/parallel/process_slots.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Process Slot Management ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- MAX_PROCS Variables ---\n'
           if declare -p MAX_PROCS &>/dev/null 2>&1; then
             printf '[DEFINED] MAX_PROCS array exists\n'
@@ -1297,7 +1297,7 @@ jobs:
           else
             printf '[UNDEFINED] MAX_PROCS array\n'
           fi
-          
+
           printf '\n--- CURRENT_PROCS Variables ---\n'
           if declare -p CURRENT_PROCS &>/dev/null 2>&1; then
             printf '[DEFINED] CURRENT_PROCS array exists\n'
@@ -1332,16 +1332,16 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/orchestrator/dependency_graph.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Dependency Graph ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Orchestrator Functions ---\n'
           ORCH_FUNCS=(
             "orchestrator_init"
@@ -1350,7 +1350,7 @@ jobs:
             "orchestrator_run"
             "orchestrator_get_order"
           )
-          
+
           for func in "${ORCH_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1358,7 +1358,7 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           printf '\n--- Phase Order Analysis ---\n'
           PHASES=(
             "00_osint"
@@ -1372,7 +1372,7 @@ jobs:
             "08_params"
             "09_vulnscan"
           )
-          
+
           for i in "${!PHASES[@]}"; do
             printf 'Phase %d: %s\n' "$i" "${PHASES[$i]}"
           done
@@ -1381,32 +1381,32 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/orchestrator/phase_status.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Phase Status Tracking ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export dir="/tmp/neko_orch_$$"
           export called_fn_dir="${dir}/.called"
-          
+
           mkdir -p "$called_fn_dir"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing status markers ---\n'
-          
+
           touch "$called_fn_dir/.osint_started"
           if [[ -f "$called_fn_dir/.osint_started" ]]; then
             printf '[OK] Started marker created\n'
           fi
-          
+
           touch "$called_fn_dir/.osint"
           rm -f "$called_fn_dir/.osint_started"
           if [[ -f "$called_fn_dir/.osint" ]] && [[ ! -f "$called_fn_dir/.osint_started" ]]; then
             printf '[OK] Completed marker created, started marker removed\n'
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Upload Orchestrator Logs
@@ -1436,16 +1436,16 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/data-flow/publishing.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Data Publishing ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Data Bus Functions ---\n'
           BUS_FUNCS=(
             "bus_init"
@@ -1454,7 +1454,7 @@ jobs:
             "bus_get_data"
             "bus_clear"
           )
-          
+
           for func in "${BUS_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1467,9 +1467,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/data-flow/channels.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Data Channels ==="
-          
+
           EXPECTED_CHANNELS=(
             "subdomain_discovery"
             "resolved_hosts"
@@ -1479,12 +1479,12 @@ jobs:
             "param_urls"
             "vulnerabilities"
           )
-          
+
           printf '\n--- Expected Data Channels ---\n'
           for channel in "${EXPECTED_CHANNELS[@]}"; do
             printf 'Channel: %s\n' "$channel"
           done
-          
+
           if [[ -f "lib/data_flow_bus.sh" ]]; then
             printf '\n--- Channels defined in data_flow_bus.sh ---\n'
             grep -E "channel|CHANNEL" lib/data_flow_bus.sh 2>/dev/null | head -20 || printf '[INFO] No channel definitions found\n'
@@ -1517,14 +1517,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/intelligence/functions.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Intelligence Engine ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Intelligence Functions ---\n'
           INTEL_FUNCS=(
             "intel_init"
@@ -1534,7 +1534,7 @@ jobs:
             "intel_deduplicate"
             "intel_generate_report"
           )
-          
+
           for func in "${INTEL_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1542,14 +1542,14 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           printf '\n--- Intelligence Configuration ---\n'
           INTEL_VARS=(
             "INTELLIGENCE_ENABLED"
             "INTEL_AUTO_CORRELATE"
             "INTEL_ATTACK_CHAINS"
           )
-          
+
           for var in "${INTEL_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1585,14 +1585,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/plugins/loading.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Plugin System ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Plugin Functions ---\n'
           PLUGIN_FUNCS=(
             "plugin_init"
@@ -1602,7 +1602,7 @@ jobs:
             "plugin_register_hook"
             "plugin_run_hooks"
           )
-          
+
           for func in "${PLUGIN_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1610,7 +1610,7 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           printf '\n--- Plugin Directory ---\n'
           if [[ -d "plugins" ]]; then
             printf '[OK] plugins/ directory exists\n'
@@ -1618,7 +1618,7 @@ jobs:
           else
             printf '[MISSING] plugins/ directory\n'
           fi
-          
+
           printf '\n--- Plugin Configuration ---\n'
           if [[ -f "config/plugins.json" ]]; then
             printf '[OK] plugins.json exists\n'
@@ -1654,21 +1654,21 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/logging-system/log_levels.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Log Levels ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_log_$$"
           export LOGFILE="${dir}/test.log"
-          
+
           mkdir -p "$dir"
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Log Level Functions ---\n'
           LOG_LEVELS=(
             "log_info:INFO"
@@ -1679,11 +1679,11 @@ jobs:
             "log_phase:PHASE"
             "log_module:MODULE"
           )
-          
+
           for level_info in "${LOG_LEVELS[@]}"; do
             func="${level_info%%:*}"
             level="${level_info##*:}"
-            
+
             if type -t "$func" &>/dev/null; then
               $func "Test message for $level" 2>/dev/null || true
               printf '[OK] %s executed\n' "$func"
@@ -1691,18 +1691,18 @@ jobs:
               printf '[MISSING] %s\n' "$func"
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Log Formatting
         run: |
           set -euo pipefail
           exec > >(tee logs/logging-system/formatting.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Log Formatting ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Logging Configuration ---\n'
           LOG_VARS=(
             "LOGGING_ENABLED"
@@ -1710,7 +1710,7 @@ jobs:
             "NEKO_LOG_FORMAT"
             "NEKO_LOG_ROTATE"
           )
-          
+
           for var in "${LOG_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1746,14 +1746,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/proxy-network/proxy_config.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Proxy Configuration ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Proxy Variables ---\n'
           PROXY_VARS=(
             "PROXY_URL"
@@ -1761,7 +1761,7 @@ jobs:
             "TOR_ENABLED"
             "PROXY_LIST"
           )
-          
+
           for var in "${PROXY_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1769,7 +1769,7 @@ jobs:
               printf '[UNSET] %s\n' "$var"
             fi
           done
-          
+
           printf '\n--- Proxy Functions ---\n'
           PROXY_FUNCS=(
             "proxy_init"
@@ -1778,7 +1778,7 @@ jobs:
             "proxy_test"
             "proxy_cleanup"
           )
-          
+
           for func in "${PROXY_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -1791,11 +1791,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/proxy-network/network_errors.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Network Error Handling ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Timeout Variables ---\n'
           TIMEOUT_VARS=(
             "HTTPX_TIMEOUT"
@@ -1803,7 +1803,7 @@ jobs:
             "WGET_TIMEOUT"
             "NUCLEI_TIMEOUT"
           )
-          
+
           for var in "${TIMEOUT_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1839,11 +1839,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/output-format/report_gen.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Report Generation ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Report Configuration ---\n'
           REPORT_VARS=(
             "REPORT_ENABLED"
@@ -1852,7 +1852,7 @@ jobs:
             "REPORT_JSON"
             "REPORT_SUMMARY"
           )
-          
+
           for var in "${REPORT_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1860,15 +1860,15 @@ jobs:
               printf '[UNSET] %s\n' "$var"
             fi
           done
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           if [[ -f "modules/15_report.sh" ]]; then
             source "modules/15_report.sh" 2>/dev/null || true
             printf '\n--- Report Functions ---\n'
-            
+
             REPORT_FUNCS=$(grep -E "^[a-z_]+\(\)" modules/15_report.sh 2>/dev/null | sed 's/().*//' | head -20 || true)
             for func in $REPORT_FUNCS; do
               if type -t "$func" &>/dev/null; then
@@ -1906,9 +1906,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/security/file_permissions.log) 2>&1
-          
+
           printf '%s\n' "=== Testing File Permissions ==="
-          
+
           printf '\n--- Script Permissions ---\n'
           for script in neko.sh install.sh run_tests.sh; do
             if [[ -f "$script" ]]; then
@@ -1916,7 +1916,7 @@ jobs:
               printf '%s: %s\n' "$script" "$PERMS"
             fi
           done
-          
+
           printf '\n--- Module Permissions ---\n'
           for script in modules/*.sh; do
             PERMS=$(stat -c "%a" "$script" 2>/dev/null || stat -f "%OLp" "$script" 2>/dev/null || echo "unknown")
@@ -1927,19 +1927,19 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/security/api_key_masking.log) 2>&1
-          
+
           printf '%s\n' "=== Testing API Key Masking ==="
-          
+
           printf '\n--- Checking for exposed keys in config ---\n'
           EXPOSED_KEYS=$(grep -E "^\s*[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD)=.+" neko.cfg 2>/dev/null | grep -v '=""' | grep -v "^#" || true)
-          
+
           if [[ -n "$EXPOSED_KEYS" ]]; then
             printf '[WARN] Potentially exposed secrets (redacted):\n'
             echo "$EXPOSED_KEYS" | sed 's/=.*/=***REDACTED***/'
           else
             printf '[OK] No exposed secrets in config\n'
           fi
-          
+
           printf '\n--- Checking log masking in code ---\n'
           MASK_PATTERNS=$(grep -r "KEY\|TOKEN\|SECRET" lib/*.sh 2>/dev/null | grep -i "mask\|redact\|hide" | head -5 || true)
           if [[ -n "$MASK_PATTERNS" ]]; then
@@ -1975,11 +1975,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/resource/limits.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Resource Limits ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Resource Limit Variables ---\n'
           RESOURCE_VARS=(
             "MAX_NETWORK_PROCS"
@@ -1987,7 +1987,7 @@ jobs:
             "MAX_IO_PROCS"
             "MEMORY_LIMIT"
           )
-          
+
           for var in "${RESOURCE_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -1995,7 +1995,7 @@ jobs:
               printf '[UNSET] %s\n' "$var"
             fi
           done
-          
+
           printf '\n--- System Resources ---\n'
           printf 'CPU cores: %s\n' "$(nproc)"
           free -h | head -2
@@ -2005,14 +2005,14 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/resource/cleanup.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Process Cleanup ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Cleanup Functions ---\n'
           CLEANUP_FUNCS=(
             "cleanup"
@@ -2021,7 +2021,7 @@ jobs:
             "pipeline_cleanup"
             "proxy_cleanup"
           )
-          
+
           for func in "${CLEANUP_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -2061,15 +2061,15 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/cross-platform/platform_${{ matrix.os }}.log) 2>&1
-          
+
           printf '%s\n' "=== Cross-Platform Testing: ${{ matrix.os }} ==="
-          
+
           printf '\n--- System Info ---\n'
           uname -a
-          
+
           printf '\n--- Bash Version ---\n'
           bash --version | head -1
-          
+
           printf '\n--- Syntax Validation ---\n'
           for script in neko.sh install.sh; do
             if bash -n "$script" 2>&1; then
@@ -2078,7 +2078,7 @@ jobs:
               printf '[FAIL] %s\n' "$script"
             fi
           done
-          
+
           printf '\n--- Library Syntax ---\n'
           for lib in lib/*.sh; do
             if bash -n "$lib" 2>&1; then
@@ -2087,7 +2087,7 @@ jobs:
               printf '[FAIL] %s\n' "$(basename "$lib")"
             fi
           done
-          
+
           printf '\n--- Tool Availability ---\n'
           for tool in bash curl wget git jq; do
             if command -v "$tool" &>/dev/null; then
@@ -2129,18 +2129,18 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/cli/flags.log) 2>&1
-          
+
           printf '%s\n' "=== Testing CLI Flags ==="
-          
+
           printf '\n--- Testing --help ---\n'
           ./neko.sh --help 2>&1 | head -50 || printf '[INFO] Help returned non-zero\n'
-          
+
           printf '\n--- Testing --version ---\n'
           ./neko.sh --version 2>&1 || printf '[INFO] Version returned non-zero\n'
-          
+
           printf '\n--- Testing --check-tools ---\n'
           ./neko.sh --check-tools 2>&1 | head -30 || printf '[INFO] Check-tools returned non-zero (expected)\n'
-          
+
           printf '\n--- Testing -h ---\n'
           ./neko.sh -h 2>&1 | head -20 || printf '[INFO] -h returned non-zero\n'
 
@@ -2148,15 +2148,15 @@ jobs:
         run: |
           set -uo pipefail
           exec > >(tee logs/cli/invalid_input.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Invalid Input Handling ==="
-          
+
           printf '\n--- No arguments ---\n'
           ./neko.sh 2>&1 | head -10 || printf '[OK] Correctly fails without arguments\n'
-          
+
           printf '\n--- Invalid flag ---\n'
           ./neko.sh --invalid-xyz 2>&1 | head -10 || printf '[OK] Correctly rejects invalid flag\n'
-          
+
           printf '\n--- Empty domain ---\n'
           ./neko.sh -d "" 2>&1 | head -10 || printf '[OK] Correctly rejects empty domain\n'
 
@@ -2164,15 +2164,15 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/cli/help_text.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Help Text Generation ==="
-          
+
           HELP_OUTPUT=$(./neko.sh --help 2>&1 || true)
-          
+
           printf '\n--- Checking for required sections ---\n'
-          
+
           REQUIRED_SECTIONS=("Usage" "Options" "Examples" "domain")
-          
+
           for section in "${REQUIRED_SECTIONS[@]}"; do
             if echo "$HELP_OUTPUT" | grep -qi "$section"; then
               printf '[OK] Help contains: %s\n' "$section"
@@ -2208,21 +2208,21 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/state/resume.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Resume Functionality ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export dir="/tmp/neko_state_$$"
           export called_fn_dir="${dir}/.called"
-          
+
           mkdir -p "$called_fn_dir"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Testing module completion markers ---\n'
-          
+
           if type -t mark_module_completed &>/dev/null; then
             mark_module_completed "test_module"
             if [[ -f "$called_fn_dir/.test_module" ]]; then
@@ -2234,7 +2234,7 @@ jobs:
             touch "$called_fn_dir/.test_module"
             printf '[INFO] Using manual marker creation\n'
           fi
-          
+
           if type -t is_module_completed &>/dev/null; then
             if is_module_completed "test_module"; then
               printf '[PASS] is_module_completed detects marker\n'
@@ -2246,21 +2246,21 @@ jobs:
               printf '[PASS] Manual marker check works\n'
             fi
           fi
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Test Checkpoint Creation
         run: |
           set -euo pipefail
           exec > >(tee logs/state/checkpoints.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Checkpoint Creation ==="
-          
+
           source neko.cfg 2>/dev/null || true
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Checkpoint Functions ---\n'
           CHECKPOINT_FUNCS=(
             "save_state"
@@ -2268,7 +2268,7 @@ jobs:
             "create_checkpoint"
             "restore_checkpoint"
           )
-          
+
           for func in "${CHECKPOINT_FUNCS[@]}"; do
             if type -t "$func" &>/dev/null; then
               printf '[AVAILABLE] %s\n' "$func"
@@ -2304,11 +2304,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/wordlist/config.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Wordlist Configuration ==="
-          
+
           source neko.cfg 2>/dev/null || true
-          
+
           printf '\n--- Wordlist Variables ---\n'
           WORDLIST_VARS=(
             "SUBS_WORDLIST"
@@ -2322,7 +2322,7 @@ jobs:
             "API_WORDLIST"
             "RESOLVERS"
           )
-          
+
           for var in "${WORDLIST_VARS[@]}"; do
             if [[ -n "${!var:-}" ]]; then
               printf '[SET] %s = %s\n' "$var" "${!var}"
@@ -2335,9 +2335,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/wordlist/patterns.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Pattern Matching ==="
-          
+
           printf '\n--- Domain Pattern Tests ---\n'
           TEST_DOMAINS=(
             "example.com"
@@ -2346,11 +2346,11 @@ jobs:
             "192.168.1.1"
             "10.0.0.0/24"
           )
-          
+
           DOMAIN_REGEX='^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
           IP_REGEX='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
           CIDR_REGEX='^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
-          
+
           for domain in "${TEST_DOMAINS[@]}"; do
             if [[ "$domain" =~ $DOMAIN_REGEX ]]; then
               printf '[DOMAIN] %s\n' "$domain"
@@ -2390,32 +2390,32 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/advanced/modules.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Advanced Feature Modules ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_adv_$$"
           export called_fn_dir="${dir}/.called"
-          
+
           mkdir -p "$dir"/{logs,.called}
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           ADVANCED_MODULES=(
             "16_advanced_vulns.sh"
             "17_bettercap.sh"
           )
-          
+
           for module in "${ADVANCED_MODULES[@]}"; do
             printf '\n═══ Module: %s ═══\n' "$module"
-            
+
             if [[ -f "modules/$module" ]]; then
               if source "modules/$module" 2>/dev/null; then
                 printf '[LOADED] Module sourced\n'
-                
+
                 FUNCS=$(grep -E "^[a-z_]+\(\)" "modules/$module" 2>/dev/null | sed 's/().*//' | head -10 || true)
                 if [[ -n "$FUNCS" ]]; then
                   printf 'Functions:\n'
@@ -2434,7 +2434,7 @@ jobs:
               printf '[SKIP] Module not found\n'
             fi
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Upload Advanced Features Logs
@@ -2464,18 +2464,18 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/documentation/readme.log) 2>&1
-          
+
           printf '%s\n' "=== Testing README Consistency ==="
-          
+
           if [[ ! -f "README.md" ]]; then
             printf '[FAIL] README.md not found\n'
             exit 0
           fi
-          
+
           printf '\n--- README Stats ---\n'
           printf 'Lines: %s\n' "$(wc -l < README.md)"
           printf 'Words: %s\n' "$(wc -w < README.md)"
-          
+
           printf '\n--- Checking documented phases ---\n'
           for i in {0..17}; do
             phase_name=$(printf 'Phase %d' "$i")
@@ -2485,10 +2485,10 @@ jobs:
               printf '[MISSING] %s not documented\n' "$phase_name"
             fi
           done
-          
+
           printf '\n--- Checking documented features ---\n'
           FEATURES=("Discord" "Logging" "Parallel" "Plugin" "Proxy" "Intelligence")
-          
+
           for feature in "${FEATURES[@]}"; do
             if grep -qi "$feature" README.md; then
               printf '[OK] %s documented\n' "$feature"
@@ -2501,16 +2501,16 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/documentation/help_accuracy.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Help Text Accuracy ==="
-          
+
           chmod +x neko.sh 2>/dev/null || true
-          
+
           HELP_OUTPUT=$(./neko.sh --help 2>&1 || true)
-          
+
           printf '\n--- Documented options in help ---\n'
           OPTIONS=("-d" "--domain" "-a" "--all" "-r" "--recon" "-f" "--fast" "-h" "--help")
-          
+
           for opt in "${OPTIONS[@]}"; do
             if echo "$HELP_OUTPUT" | grep -q -- "$opt"; then
               printf '[OK] %s in help\n' "$opt"
@@ -2547,20 +2547,20 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/performance/library_loading.log) 2>&1
-          
+
           printf '%s\n' "=== Benchmarking Library Loading ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_bench_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
           export TOOLS_PATH="${TOOLS_PATH:-/tmp/Tools}"
-          
+
           mkdir -p "$dir"/{logs,.called}
           mkdir -p "$TOOLS_PATH"
           touch "$LOGFILE"
-          
+
           printf '\n--- Individual Library Load Times ---\n'
           for lib in lib/*.sh; do
             libname=$(basename "$lib")
@@ -2570,31 +2570,31 @@ jobs:
             DURATION=$(( (END - START) / 1000000 ))
             printf '%s: %dms\n' "$libname" "$DURATION"
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Benchmark Module Loading
         run: |
           set -euo pipefail
           exec > >(tee logs/performance/module_loading.log) 2>&1
-          
+
           printf '%s\n' "=== Benchmarking Module Loading ==="
-          
+
           source neko.cfg 2>/dev/null || true
           export SCRIPTPATH="$(pwd)"
           export dir="/tmp/neko_modbench_$$"
           export called_fn_dir="${dir}/.called"
           export LOGFILE="${dir}/test.log"
           export TOOLS_PATH="${TOOLS_PATH:-/tmp/Tools}"
-          
+
           mkdir -p "$dir"/{logs,subdomains,dns,hosts,webs,.called}
           mkdir -p "$TOOLS_PATH"
           touch "$LOGFILE"
-          
+
           for lib in lib/*.sh; do
             source "$lib" 2>/dev/null || true
           done
-          
+
           printf '\n--- Individual Module Load Times ---\n'
           for module in modules/*.sh; do
             modname=$(basename "$module")
@@ -2604,7 +2604,7 @@ jobs:
             DURATION=$(( (END - START) / 1000000 ))
             printf '%s: %dms\n' "$modname" "$DURATION"
           done
-          
+
           rm -rf "$dir" 2>/dev/null || true
 
       - name: Upload Performance Logs
@@ -2634,16 +2634,16 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/setup/install_syntax.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Install Script Syntax ==="
-          
+
           if [[ -f "install.sh" ]]; then
             if bash -n install.sh 2>&1; then
               printf '[PASS] install.sh syntax valid\n'
             else
               printf '[FAIL] install.sh has syntax errors\n'
             fi
-            
+
             printf '\n--- Install Script Functions ---\n'
             FUNCS=$(grep -E "^[a-z_]+\(\)" install.sh 2>/dev/null | sed 's/().*//' || true)
             for func in $FUNCS; do
@@ -2657,11 +2657,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee logs/setup/directory_structure.log) 2>&1
-          
+
           printf '%s\n' "=== Testing Directory Structure Creation ==="
-          
+
           TEST_BASE="/tmp/neko_setup_test_$$"
-          
+
           EXPECTED_DIRS=(
             "logs"
             "osint"
@@ -2685,12 +2685,12 @@ jobs:
             ".tmp"
             ".called"
           )
-          
+
           mkdir -p "$TEST_BASE"
           for dir in "${EXPECTED_DIRS[@]}"; do
             mkdir -p "$TEST_BASE/$dir"
           done
-          
+
           printf '\n--- Created directories ---\n'
           for dir in "${EXPECTED_DIRS[@]}"; do
             if [[ -d "$TEST_BASE/$dir" ]]; then
@@ -2699,7 +2699,7 @@ jobs:
               printf '[FAIL] %s\n' "$dir"
             fi
           done
-          
+
           rm -rf "$TEST_BASE" 2>/dev/null || true
 
       - name: Upload Setup Logs
@@ -2749,14 +2749,14 @@ jobs:
       - name: Generate Final Summary
         run: |
           set -euo pipefail
-          
+
           cat > final-summary.txt << 'SUMMARY'
           ╔══════════════════════════════════════════════════════════════════════════════╗
           ║                    NEKO COMPREHENSIVE TESTING SUITE                          ║
           ║                           FINAL SUMMARY REPORT                               ║
           ╠══════════════════════════════════════════════════════════════════════════════╣
           SUMMARY
-          
+
           printf '║ Run ID: %s\n' "${{ needs.setup.outputs.run_id }}" >> final-summary.txt
           printf '║ Timestamp: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> final-summary.txt
           printf '║ Event: %s\n' "${{ github.event_name }}" >> final-summary.txt
@@ -2764,7 +2764,7 @@ jobs:
           printf '╠══════════════════════════════════════════════════════════════════════════════╣\n' >> final-summary.txt
           printf '║                              TEST RESULTS                                    ║\n' >> final-summary.txt
           printf '╠══════════════════════════════════════════════════════════════════════════════╣\n' >> final-summary.txt
-          
+
           JOBS=(
             "integration-testing:1. Integration Testing"
             "library-dependency-testing:2. Library Dependencies"
@@ -2789,18 +2789,18 @@ jobs:
             "documentation-consistency:22. Documentation"
             "environment-setup-validation:24. Environment Setup"
           )
-          
+
           for job_info in "${JOBS[@]}"; do
             job_id="${job_info%%:*}"
             job_name="${job_info##*:}"
             printf '║ %-35s [COMPLETED]\n' "$job_name" >> final-summary.txt
           done
-          
+
           printf '╠══════════════════════════════════════════════════════════════════════════════╣\n' >> final-summary.txt
           printf '║ All test artifacts have been uploaded for detailed analysis.                ║\n' >> final-summary.txt
           printf '║ Download the artifacts to review detailed logs for each test category.      ║\n' >> final-summary.txt
           printf '╚══════════════════════════════════════════════════════════════════════════════╝\n' >> final-summary.txt
-          
+
           cat final-summary.txt
 
       - name: Upload Final Summary
