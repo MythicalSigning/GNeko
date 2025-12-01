@@ -1,0 +1,100 @@
+Run echo "══════════════════════════════════════════════════════════════════════════════"
+  echo "══════════════════════════════════════════════════════════════════════════════"
+  echo "NEKO COMPREHENSIVE TESTING - FINAL SUMMARY"
+  echo "══════════════════════════════════════════════════════════════════════════════"
+  
+  SUMMARY_FILE="all-logs/MASTER_SUMMARY.md"
+  
+  cat << EOF > "$SUMMARY_FILE"
+  # Neko Comprehensive Testing - Master Summary
+  
+  **Run ID:** 20251201_113853_run1_1
+  **Timestamp:** $(date '+%Y-%m-%d %H:%M:%S')
+  **Git SHA:** cd80cb1581d563bc9b3230f033f3b86df97ca3fe
+  **Branch:** refs/heads/develop
+  
+  ## Job Results
+  
+  | Job | Status |
+  |-----|--------|
+  | 1. Initialize Environment | success |
+  | 2. Syntax Analysis | success |
+  | 3. Config Validation | success |
+  | 4. Structure Validation | success |
+  | 5. Library Tests | failure |
+  | 6. Module Tests | skipped |
+  | 7. Main Script Tests | skipped |
+  | 8. Test Suite | skipped |
+  
+  ## Overall Status
+  
+  EOF
+  
+  # Determine overall status
+  OVERALL="SUCCESS"
+  CRITICAL_FAILURES=""
+  
+  if [[ "success" == "failure" ]]; then
+    OVERALL="FAILURE"
+    CRITICAL_FAILURES+="- Syntax Analysis FAILED\n"
+  fi
+  
+  if [[ "success" == "failure" ]]; then
+    OVERALL="FAILURE"
+    CRITICAL_FAILURES+="- Configuration Validation FAILED\n"
+  fi
+  
+  if [[ "failure" == "failure" ]]; then
+    OVERALL="FAILURE"
+    CRITICAL_FAILURES+="- Library Tests FAILED\n"
+  fi
+  
+  if [[ "skipped" == "failure" ]]; then
+    OVERALL="FAILURE"
+    CRITICAL_FAILURES+="- Module Tests FAILED\n"
+  fi
+  
+  echo "**Overall: $OVERALL**" >> "$SUMMARY_FILE"
+  echo "" >> "$SUMMARY_FILE"
+  
+  if [[ -n "$CRITICAL_FAILURES" ]]; then
+    echo "### Critical Failures" >> "$SUMMARY_FILE"
+    echo "" >> "$SUMMARY_FILE"
+    printf "$CRITICAL_FAILURES" >> "$SUMMARY_FILE"
+    echo "" >> "$SUMMARY_FILE"
+  fi
+  
+  echo "## Artifacts" >> "$SUMMARY_FILE"
+  echo "" >> "$SUMMARY_FILE"
+  echo "All detailed logs are available as downloadable artifacts." >> "$SUMMARY_FILE"
+  echo "" >> "$SUMMARY_FILE"
+  
+  # List available artifacts
+  echo "### Available Logs" >> "$SUMMARY_FILE"
+  echo "" >> "$SUMMARY_FILE"
+  ls -la all-logs/ >> "$SUMMARY_FILE" 2>/dev/null || echo "No artifacts found" >> "$SUMMARY_FILE"
+  
+  cat "$SUMMARY_FILE"
+  
+  echo ""
+  echo "══════════════════════════════════════════════════════════════════════════════"
+  
+  if [[ "$OVERALL" == "FAILURE" ]]; then
+    echo ""
+    echo "[CRITICAL] Some tests failed. Please review the logs."
+    exit 1
+  fi
+  shell: /usr/bin/bash -e {0}
+  env:
+    DEBUG_LEVEL: 5
+    TIMESTAMP_FORMAT: %Y-%m-%d %H:%M:%S.%3N
+    TOOLS_PATH: /home/runner/Tools
+    WORDLISTS_PATH: /home/runner/Tools/wordlists
+    LOG_COLORS: true
+    VERBOSE_OUTPUT: true
+══════════════════════════════════════════════════════════════════════════════
+NEKO COMPREHENSIVE TESTING - FINAL SUMMARY
+══════════════════════════════════════════════════════════════════════════════
+/home/runner/work/_temp/ba20f53b-801f-4e73-9946-4ef44367f4e2.sh: line 62: printf: - : invalid option
+printf: usage: printf [-v var] format [arguments]
+Error: Process completed with exit code 2.

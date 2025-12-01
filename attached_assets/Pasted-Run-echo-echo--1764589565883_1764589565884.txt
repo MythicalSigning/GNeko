@@ -1,0 +1,198 @@
+Run echo "══════════════════════════════════════════════════════════════════════════════"
+  echo "══════════════════════════════════════════════════════════════════════════════"
+  echo "DEEP LIBRARY LOADING ANALYSIS"
+  echo "══════════════════════════════════════════════════════════════════════════════"
+  
+  LIB_REPORT="logs/library/full_library_report.log"
+  FUNC_REPORT="logs/library/functions/all_functions.log"
+  DEP_REPORT="logs/library/dependencies/dependency_map.log"
+  
+  cat << 'HEADER' > "$LIB_REPORT"
+  ══════════════════════════════════════════════════════════════════════════════
+  NEKO LIBRARY LOADING ANALYSIS
+  ══════════════════════════════════════════════════════════════════════════════
+  
+  This report shows detailed analysis of each library file including:
+  - Load success/failure
+  - Functions defined
+  - Variables exported
+  - Dependencies
+  - Error messages
+  
+  HEADER
+  
+  echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S.%3N')" >> "$LIB_REPORT"
+  echo "" >> "$LIB_REPORT"
+  
+  # Set up test environment
+  export SCRIPTPATH="$(pwd)"
+  export LIB_PATH="$(pwd)/lib"
+  export MODULES_PATH="$(pwd)/modules"
+  export CONFIG_PATH="$(pwd)/config"
+  export TOOLS_PATH="/tmp/Tools"
+  export dir="/tmp/neko_test_$$"
+  export called_fn_dir="${dir}/.called"
+  export LOGFILE="${dir}/test.log"
+  export domain="test.example.com"
+  export DEBUG="true"
+  
+  mkdir -p "$dir"/{logs,.called}
+  mkdir -p "$TOOLS_PATH"
+  touch "$LOGFILE"
+  
+  # Load config first
+  echo "─── Loading Configuration ───" >> "$LIB_REPORT"
+  if source neko.cfg 2>&1 | tee -a "$LIB_REPORT"; then
+    echo "[OK] Configuration loaded" >> "$LIB_REPORT"
+  else
+    echo "[WARN] Configuration had issues" >> "$LIB_REPORT"
+  fi
+  
+  echo "" >> "$LIB_REPORT"
+  
+  # Libraries in load order
+  LIBRARIES=(
+    "core.sh"
+    "logging.sh"
+    "error_handling.sh"
+    "error_reporting.sh"
+    "parallel.sh"
+    "async_pipeline.sh"
+    "queue_manager.sh"
+    "data_flow_bus.sh"
+    "orchestrator.sh"
+    "proxy_rotation.sh"
+    "intelligence.sh"
+    "plugin.sh"
+    "discord_notifications.sh"
+  )
+  
+  LOAD_SUCCESS=0
+  LOAD_FAIL=0
+  TOTAL_FUNCTIONS=0
+  
+  for lib in "${LIBRARIES[@]}"; do
+    LIB_FILE="lib/$lib"
+    LIB_NAME="${lib%.sh}"
+    INDIVIDUAL_LOG="logs/library/individual/${LIB_NAME}_analysis.log"
+    
+    echo "" >> "$LIB_REPORT"
+    echo "════════════════════════════════════════════════════════════════" >> "$LIB_REPORT"
+    echo "LIBRARY: $lib" >> "$LIB_REPORT"
+    echo "════════════════════════════════════════════════════════════════" >> "$LIB_REPORT"
+    
+    cat << LIBHEADER > "$INDIVIDUAL_LOG"
+  ══════════════════════════════════════════════════════════════════════════════
+  LIBRARY ANALYSIS: $lib
+  ══════════════════════════════════════════════════════════════════════════════
+  
+  LIBHEADER
+    
+    if [[ ! -f "$LIB_FILE" ]]; then
+      echo "[SKIP] File not found: $LIB_FILE" >> "$LIB_REPORT"
+      echo "Status: FILE NOT FOUND" >> "$INDIVIDUAL_LOG"
+      continue
+    fi
+    
+    # File info
+    echo "" >> "$LIB_REPORT"
+    echo "─── File Information ───" >> "$LIB_REPORT"
+    echo "  Path:  $LIB_FILE" >> "$LIB_REPORT"
+    echo "  Size:  $(wc -c < "$LIB_FILE") bytes" >> "$LIB_REPORT"
+    echo "  Lines: $(wc -l < "$LIB_FILE")" >> "$LIB_REPORT"
+    
+    # Get functions before loading
+    FUNCS_BEFORE=$(declare -F 2>/dev/null | wc -l)
+    
+    echo "" >> "$LIB_REPORT"
+    echo "─── Loading Library ───" >> "$LIB_REPORT"
+    
+    # Try to source
+    if source "$LIB_FILE" 2>&1 | tee -a "$LIB_REPORT" "$INDIVIDUAL_LOG"; then
+      echo "[PASS] Library loaded successfully" >> "$LIB_REPORT"
+      echo "Status: LOADED" >> "$INDIVIDUAL_LOG"
+      LOAD_SUCCESS=$((LOAD_SUCCESS + 1))
+    else
+      echo "[FAIL] Library failed to load" >> "$LIB_REPORT"
+      echo "Status: FAILED" >> "$INDIVIDUAL_LOG"
+      LOAD_FAIL=$((LOAD_FAIL + 1))
+    fi
+    
+    # Get functions after loading
+    FUNCS_AFTER=$(declare -F 2>/dev/null | wc -l)
+    NEW_FUNCS=$((FUNCS_AFTER - FUNCS_BEFORE))
+    TOTAL_FUNCTIONS=$((TOTAL_FUNCTIONS + NEW_FUNCS))
+    
+    echo "" >> "$LIB_REPORT"
+    echo "─── Functions Defined ───" >> "$LIB_REPORT"
+    echo "  New functions added: $NEW_FUNCS" >> "$LIB_REPORT"
+    
+    # List functions from this library
+    echo "" >> "$LIB_REPORT"
+    echo "  Functions:" >> "$LIB_REPORT"
+    grep -E '^\s*(function\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\(\)' "$LIB_FILE" 2>/dev/null | \
+      sed 's/().*$//' | sed 's/function //' | sed 's/^[[:space:]]*/    /' >> "$LIB_REPORT" || \
+      echo "    (none extracted)" >> "$LIB_REPORT"
+    
+    # Check for dependencies (source statements)
+    echo "" >> "$LIB_REPORT"
+    echo "─── Dependencies ───" >> "$LIB_REPORT"
+    
+    DEPS=$(grep -E '^\s*(source|\.)\s+' "$LIB_FILE" 2>/dev/null)
+    if [[ -n "$DEPS" ]]; then
+      echo "$DEPS" | sed 's/^/    /' >> "$LIB_REPORT"
+    else
+      echo "    No explicit dependencies" >> "$LIB_REPORT"
+    fi
+    
+    # Check for global variables
+    echo "" >> "$LIB_REPORT"
+    echo "─── Global Variables ───" >> "$LIB_REPORT"
+    
+    grep -E '^\s*(declare -g|export)\s+' "$LIB_FILE" 2>/dev/null | head -10 | sed 's/^/    /' >> "$LIB_REPORT" || \
+      echo "    (none found)" >> "$LIB_REPORT"
+    
+  done
+  
+  # Summary
+  cat << EOF >> "$LIB_REPORT"
+  
+  ══════════════════════════════════════════════════════════════════════════════
+  LIBRARY LOADING SUMMARY
+  ══════════════════════════════════════════════════════════════════════════════
+  
+  Total Libraries:      ${#LIBRARIES[@]}
+  Successfully Loaded:  $LOAD_SUCCESS
+  Failed to Load:       $LOAD_FAIL
+  Total Functions:      $TOTAL_FUNCTIONS
+  
+  ══════════════════════════════════════════════════════════════════════════════
+  EOF
+  
+  # All functions report
+  echo "All defined functions after loading libraries:" > "$FUNC_REPORT"
+  echo "" >> "$FUNC_REPORT"
+  declare -F | sed 's/declare -f //' >> "$FUNC_REPORT"
+  
+  # Cleanup
+  rm -rf "$dir"
+  
+  cat "$LIB_REPORT"
+  
+  if [[ $LOAD_FAIL -gt 0 ]]; then
+    echo ""
+  Error:   echo "[ERROR] $LOAD_FAIL libraries failed to load"
+    exit 1
+  fi
+  shell: /usr/bin/bash -e {0}
+  env:
+    DEBUG_LEVEL: 5
+    TIMESTAMP_FORMAT: %Y-%m-%d %H:%M:%S.%3N
+    TOOLS_PATH: /home/runner/Tools
+    WORDLISTS_PATH: /home/runner/Tools/wordlists
+    LOG_COLORS: true
+    VERBOSE_OUTPUT: true
+══════════════════════════════════════════════════════════════════════════════
+DEEP LIBRARY LOADING ANALYSIS
+══════════════════════════════════════════════════════════════════════════════
+Error: Process completed with exit code 1.
