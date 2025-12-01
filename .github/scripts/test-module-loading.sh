@@ -94,12 +94,12 @@ load_prerequisites() {
         log "INFO" "Configuration loaded"
     fi
     
-    # Load all libraries
+    # Load all libraries (directly, not in subshell, to preserve function definitions)
     local lib_count=0
     for lib in lib/*.sh; do
         if [[ -f "$lib" ]]; then
             source "$lib" 2>/dev/null || true
-            ((lib_count++))
+            ((lib_count++)) || true
         fi
     done
     
@@ -160,13 +160,14 @@ test_module_loading() {
         lines=$(wc -l < "$module" 2>/dev/null || echo "0")
         log_to_file "Lines: $lines"
         
-        # Try to source the module
-        local load_output
-        if load_output=$(source "$module" 2>&1); then
+        # Source directly in main shell (not in subshell) to preserve function definitions
+        # Capture stderr to a temp file for error checking
+        local error_file="/tmp/mod_error_$$_${module_name}"
+        if source "$module" 2>"$error_file"; then
             log "PASS" "$module_name loaded"
             log_to_file "Status: LOADED"
             load_status="LOADED"
-            ((load_success++))
+            ((load_success++)) || true
             
             # Check for expected main function
             if [[ "$expected_func" != "unknown" ]]; then
@@ -174,22 +175,25 @@ test_module_loading() {
                     log "INFO" "  Function $expected_func: FOUND"
                     log_to_file "Function $expected_func: FOUND"
                     func_status="FOUND"
-                    ((func_found++))
+                    ((func_found++)) || true
                 else
                     log "WARN" "  Function $expected_func: MISSING"
                     log_to_file "Function $expected_func: MISSING"
                     func_status="MISSING"
-                    ((func_missing++))
+                    ((func_missing++)) || true
                 fi
             fi
         else
+            local load_output
+            load_output=$(cat "$error_file" 2>/dev/null || echo "Unknown error")
             log "FAIL" "$module_name failed to load"
             log_to_file "Status: FAILED"
             log_to_file "Error: $load_output"
             load_status="FAILED"
             printf '%s: %s\n' "$module_name" "$load_output" >> "$MOD_ERRORS"
-            ((load_fail++))
+            ((load_fail++)) || true
         fi
+        rm -f "$error_file" 2>/dev/null || true
         
         # Update function map
         printf '%s|%s|%s|%s\n' "$module_name" "$expected_func" "$load_status" "$func_status" >> "$FUNC_MAP"

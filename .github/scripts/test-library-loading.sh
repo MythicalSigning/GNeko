@@ -87,12 +87,18 @@ load_config() {
     cd "$PROJECT_ROOT"
     
     if [[ -f "neko.cfg" ]]; then
-        if source neko.cfg 2>&1 | tee -a "$LIB_LOG"; then
+        # Source directly in current shell (not via pipeline) to preserve variable definitions
+        local error_file="/tmp/config_error_$$"
+        if source neko.cfg 2>"$error_file"; then
             log "PASS" "Configuration loaded successfully"
+            rm -f "$error_file" 2>/dev/null
             return 0
         else
-            log "FAIL" "Configuration failed to load"
-            printf '%s\n' "Configuration load error" >> "$LIB_ERRORS"
+            local cfg_error
+            cfg_error=$(cat "$error_file" 2>/dev/null || echo "Unknown error")
+            log "FAIL" "Configuration failed to load: $cfg_error"
+            printf '%s\n' "Configuration load error: $cfg_error" >> "$LIB_ERRORS"
+            rm -f "$error_file" 2>/dev/null
             return 1
         fi
     else
@@ -137,7 +143,7 @@ test_library_loading() {
         if [[ ! -f "$lib_path" ]]; then
             log "SKIP" "$lib not found"
             log_to_file "Status: NOT FOUND"
-            ((load_skip++))
+            ((load_skip++)) || true
             continue
         fi
         
@@ -146,19 +152,23 @@ test_library_loading() {
         lines=$(wc -l < "$lib_path" 2>/dev/null || echo "0")
         log_to_file "Lines: $lines"
         
-        # Try to source the library
-        local load_output
-        if load_output=$(source "$lib_path" 2>&1); then
+        # Source directly in main shell (not in subshell) to preserve function definitions
+        # Capture stderr to a temp file for error checking
+        local error_file="/tmp/lib_error_$$_${lib}"
+        if source "$lib_path" 2>"$error_file"; then
             log "PASS" "$lib loaded successfully"
             log_to_file "Status: LOADED"
-            ((load_success++))
+            ((load_success++)) || true
         else
+            local load_output
+            load_output=$(cat "$error_file" 2>/dev/null || echo "Unknown error")
             log "FAIL" "$lib failed to load"
             log_to_file "Status: FAILED"
             log_to_file "Error: $load_output"
             printf '%s: %s\n' "$lib" "$load_output" >> "$LIB_ERRORS"
-            ((load_fail++))
+            ((load_fail++)) || true
         fi
+        rm -f "$error_file" 2>/dev/null || true
     done
     
     log_to_file ""
@@ -194,22 +204,22 @@ test_core_functions() {
     if type -t command_exists &>/dev/null; then
         if command_exists bash; then
             log "PASS" "command_exists('bash') = true"
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "command_exists('bash') should be true"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
         
         if ! command_exists nonexistent_command_xyz_123; then
             log "PASS" "command_exists('nonexistent') = false"
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "command_exists('nonexistent') should be false"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
     else
         log "SKIP" "command_exists not defined"
-        ((tests_skipped++))
+        ((tests_skipped++)) || true
     fi
     
     # Test validate_domain
@@ -218,14 +228,14 @@ test_core_functions() {
     if type -t validate_domain &>/dev/null; then
         if validate_domain "example.com"; then
             log "PASS" "validate_domain('example.com') = valid"
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "validate_domain('example.com') should be valid"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
     else
         log "SKIP" "validate_domain not defined"
-        ((tests_skipped++))
+        ((tests_skipped++)) || true
     fi
     
     # Test is_ip
@@ -234,14 +244,14 @@ test_core_functions() {
     if type -t is_ip &>/dev/null; then
         if is_ip "192.168.1.1"; then
             log "PASS" "is_ip('192.168.1.1') = true"
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "is_ip('192.168.1.1') should be true"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
     else
         log "SKIP" "is_ip not defined"
-        ((tests_skipped++))
+        ((tests_skipped++)) || true
     fi
     
     # Test ensure_dir
@@ -253,14 +263,14 @@ test_core_functions() {
         if [[ -d "$test_dir" ]]; then
             log "PASS" "ensure_dir creates directory"
             rmdir "$test_dir" 2>/dev/null || true
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "ensure_dir did not create directory"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
     else
         log "SKIP" "ensure_dir not defined"
-        ((tests_skipped++))
+        ((tests_skipped++)) || true
     fi
     
     # Test timestamp
@@ -271,14 +281,14 @@ test_core_functions() {
         ts=$(timestamp)
         if [[ "$ts" =~ ^[0-9]{8}_[0-9]{6}$ ]]; then
             log "PASS" "timestamp format correct: $ts"
-            ((tests_passed++))
+            ((tests_passed++)) || true
         else
             log "FAIL" "timestamp format incorrect: $ts"
-            ((tests_failed++))
+            ((tests_failed++)) || true
         fi
     else
         log "SKIP" "timestamp not defined"
-        ((tests_skipped++))
+        ((tests_skipped++)) || true
     fi
     
     log_to_file ""
