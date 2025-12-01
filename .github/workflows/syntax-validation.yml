@@ -1,0 +1,127 @@
+name: Bash Syntax Validation
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - '**.sh'
+      - '**.bash'
+      - 'neko.cfg'
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    name: Bash Syntax Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Bash version
+        run: |
+          bash --version
+          echo "---"
+          echo "Using bash from: $(which bash)"
+
+      - name: Validate neko.sh syntax
+        run: |
+          echo "=== Validating neko.sh ==="
+          bash -n neko.sh
+          echo "Syntax OK: neko.sh"
+
+      - name: Validate install.sh syntax
+        run: |
+          echo "=== Validating install.sh ==="
+          bash -n install.sh
+          echo "Syntax OK: install.sh"
+
+      - name: Validate neko.cfg syntax
+        run: |
+          echo "=== Validating neko.cfg ==="
+          bash -n neko.cfg
+          echo "Syntax OK: neko.cfg"
+
+      - name: Validate library scripts
+        run: |
+          echo "=== Validating lib/*.sh ==="
+          EXIT_CODE=0
+          for script in lib/*.sh; do
+            if bash -n "$script" 2>&1; then
+              echo "Syntax OK: $script"
+            else
+              echo "Syntax ERROR: $script"
+              EXIT_CODE=1
+            fi
+          done
+          exit $EXIT_CODE
+
+      - name: Validate module scripts
+        run: |
+          echo "=== Validating modules/*.sh ==="
+          EXIT_CODE=0
+          for script in modules/*.sh; do
+            if bash -n "$script" 2>&1; then
+              echo "Syntax OK: $script"
+            else
+              echo "Syntax ERROR: $script"
+              EXIT_CODE=1
+            fi
+          done
+          exit $EXIT_CODE
+
+      - name: Validate test scripts
+        run: |
+          echo "=== Validating test scripts ==="
+          for script in run_tests.sh test_discord.sh; do
+            if [[ -f "$script" ]]; then
+              if bash -n "$script" 2>&1; then
+                echo "Syntax OK: $script"
+              else
+                echo "Syntax ERROR: $script"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Check for common bash pitfalls
+        run: |
+          echo "=== Checking for common issues ==="
+          
+          echo "Checking for unquoted variables in conditionals..."
+          grep -rn '\[ \$[A-Za-z_]' --include="*.sh" . || echo "No unquoted variables in [ ] found"
+          
+          echo ""
+          echo "Checking for == in [ ] (should use = or [[ ]])..."
+          grep -rn '\[ .* == ' --include="*.sh" . || echo "No == in [ ] found"
+          
+          echo ""
+          echo "Checking for potential word splitting issues..."
+          grep -rn 'for .* in \$[A-Za-z_][A-Za-z_0-9]*[^@\[]' --include="*.sh" . | head -20 || echo "No obvious word splitting issues"
+
+      - name: Check shebang lines
+        run: |
+          echo "=== Checking shebang lines ==="
+          for script in neko.sh install.sh lib/*.sh modules/*.sh; do
+            if [[ -f "$script" ]]; then
+              SHEBANG=$(head -1 "$script")
+              if [[ "$SHEBANG" =~ ^#! ]]; then
+                echo "$script: $SHEBANG"
+              else
+                echo "WARNING: $script has no shebang or invalid shebang: $SHEBANG"
+              fi
+            fi
+          done
+
+      - name: Verify executable permissions
+        run: |
+          echo "=== Checking file permissions ==="
+          for script in neko.sh install.sh; do
+            if [[ -x "$script" ]]; then
+              echo "$script: Executable"
+            else
+              echo "WARNING: $script is not executable"
+            fi
+          done
