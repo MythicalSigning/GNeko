@@ -1,0 +1,119 @@
+name: ShellCheck Analysis
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - '**.sh'
+      - '**.bash'
+      - 'neko.cfg'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - '**.sh'
+      - '**.bash'
+      - 'neko.cfg'
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    name: ShellCheck Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Get all shell scripts
+        id: get-scripts
+        run: |
+          echo "Finding all shell scripts..."
+          find . -type f \( -name "*.sh" -o -name "*.bash" \) | head -100 > /tmp/scripts.txt
+          cat /tmp/scripts.txt
+          echo "script_count=$(wc -l < /tmp/scripts.txt)" >> $GITHUB_OUTPUT
+
+      - name: Run ShellCheck on main script
+        run: |
+          echo "=== Checking neko.sh ==="
+          shellcheck -x -s bash -S warning neko.sh 2>&1 || true
+
+      - name: Run ShellCheck on library scripts
+        run: |
+          echo "=== Checking lib/*.sh ==="
+          for script in lib/*.sh; do
+            echo "--- Checking $script ---"
+            shellcheck -x -s bash -S warning "$script" 2>&1 || true
+          done
+
+      - name: Run ShellCheck on module scripts
+        run: |
+          echo "=== Checking modules/*.sh ==="
+          for script in modules/*.sh; do
+            echo "--- Checking $script ---"
+            shellcheck -x -s bash -S warning "$script" 2>&1 || true
+          done
+
+      - name: Run ShellCheck on install script
+        run: |
+          echo "=== Checking install.sh ==="
+          shellcheck -x -s bash -S warning install.sh 2>&1 || true
+
+      - name: Run ShellCheck on test scripts
+        run: |
+          echo "=== Checking test scripts ==="
+          for script in run_tests.sh test_discord.sh; do
+            if [[ -f "$script" ]]; then
+              echo "--- Checking $script ---"
+              shellcheck -x -s bash -S warning "$script" 2>&1 || true
+            fi
+          done
+
+      - name: ShellCheck with strict mode (errors only)
+        run: |
+          echo "=== Running strict ShellCheck (errors only) ==="
+          EXIT_CODE=0
+          
+          for script in neko.sh install.sh lib/*.sh modules/*.sh; do
+            if [[ -f "$script" ]]; then
+              if ! shellcheck -x -s bash -S error "$script" 2>&1; then
+                echo "ERRORS found in: $script"
+                EXIT_CODE=1
+              fi
+            fi
+          done
+          
+          if [[ $EXIT_CODE -eq 0 ]]; then
+            echo "No critical errors found!"
+          fi
+          exit $EXIT_CODE
+
+      - name: Generate ShellCheck report
+        if: always()
+        run: |
+          echo "# ShellCheck Report" > shellcheck-report.md
+          echo "" >> shellcheck-report.md
+          echo "## Summary" >> shellcheck-report.md
+          echo "" >> shellcheck-report.md
+          
+          for script in neko.sh install.sh lib/*.sh modules/*.sh; do
+            if [[ -f "$script" ]]; then
+              echo "### $script" >> shellcheck-report.md
+              echo '```' >> shellcheck-report.md
+              shellcheck -x -s bash -f gcc "$script" 2>&1 >> shellcheck-report.md || true
+              echo '```' >> shellcheck-report.md
+              echo "" >> shellcheck-report.md
+            fi
+          done
+
+      - name: Upload ShellCheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-report
+          path: shellcheck-report.md
+          retention-days: 30
