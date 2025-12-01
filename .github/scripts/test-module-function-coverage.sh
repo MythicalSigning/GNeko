@@ -165,9 +165,9 @@ test_parameter_handling() {
             fi
 
             if [[ "$result" == "$expected" ]]; then
-                printf '[PASS] validate_domain("%s") = %d\n' "$input" "$result" >> "$PARAM_LOG"
+                printf '%s\n' "[PASS] validate_domain(\"$input\") = $result" >> "$PARAM_LOG"
             else
-                printf '[FAIL] validate_domain("%s") = %d (expected: %s)\n' "$input" "$result" "$expected" >> "$PARAM_LOG"
+                printf '%s\n' "[FAIL] validate_domain(\"$input\") = $result (expected: $expected)" >> "$PARAM_LOG"
             fi
         done
     else
@@ -218,9 +218,9 @@ test_parameter_handling() {
             fi
 
             if [[ "$result" == "$expected" ]]; then
-                printf '[PASS] is_ip("%s") = %d\n' "$input" "$result" >> "$PARAM_LOG"
+                printf '%s\n' "[PASS] is_ip(\"$input\") = $result" >> "$PARAM_LOG"
             else
-                printf '[FAIL] is_ip("%s") = %d (expected: %s)\n' "$input" "$result" "$expected" >> "$PARAM_LOG"
+                printf '%s\n' "[FAIL] is_ip(\"$input\") = $result (expected: $expected)" >> "$PARAM_LOG"
             fi
         done
     else
